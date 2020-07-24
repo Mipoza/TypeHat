@@ -8,10 +8,18 @@ def listenning():
     serv.listen(10)
     while True:
         serv.wait_connect()
+        new_user_in(serv.user_list[-1])
         #entered blabla
         #thread for wait message
 
 #make a refresh
+
+def new_user_in(user):
+    for u in serv.user_list:
+        u.secure_send(user.username + " has join the chat !")
+
+def wait_recv(user):
+    pass
 
 if __name__ == "__main__":
     #threading.Thread(target=listenning).start()

@@ -29,11 +29,13 @@ class secure_socket:
         else:
             return result
 
-class Users:
-    pass
+class user(secure_socket):
+    def __init__(self, key, connection, username, buffer=2048):
+        secure_socket.__init__(self, key, connection, buffer)
+        self.username = username
 
 class ss_serv():
-    connection_list = [] #make user class and make this an users list
+    user_list = [] #make user class and make this an users list
     def __init__(self, port, buffer=2048):
         self.port = port
         self.socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -52,8 +54,11 @@ class ss_serv():
 
             cipher_rsa = PKCS1_OAEP.new(self.key_RSA)
             self.key = cipher_rsa.decrypt(enc_key)
-            ss = secure_socket(self.key, connection, self.buffer)
 
-            connection_list.append(ss)
+            new_user = user(self.key, connection, "",self.buffer)
+            username = new_user.secure_recv()
+            new_user.username = username.decode()
+
+            ss_serv.user_list.append(new_user)
         except socket.error as err:
             print("error occured for accepting socket : {}".format(err))
