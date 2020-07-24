@@ -29,8 +29,11 @@ class secure_socket:
         else:
             return result
 
+class Users:
+    pass
+
 class ss_serv():
-    connection_list = []
+    connection_list = [] #make user class and make this an users list
     def __init__(self, port, buffer=2048):
         self.port = port
         self.socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -43,9 +46,7 @@ class ss_serv():
     
     def wait_connect(self):
         try:
-            print("dd")
             connection, infos = self.socket.accept()
-            print("ddddd")
             connection.send(self.key_RSA.publickey().export_key())
             enc_key = connection.recv(self.buffer)
 

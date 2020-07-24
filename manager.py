@@ -8,10 +8,14 @@ def listenning():
     serv.listen(10)
     while True:
         serv.wait_connect()
+        #entered blabla
+        #thread for wait message
 
+#make a refresh
 
 if __name__ == "__main__":
-    threading.Thread(target=listenning).start()
+    #threading.Thread(target=listenning).start()
+    listenning()
     
 
 
