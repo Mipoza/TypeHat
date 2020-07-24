@@ -14,20 +14,12 @@ class secure_socket:
         to_send = data
         if(type(data) == str):
             to_send = to_send.encode()
-        try:
-            result = self.socket.send(self.encrypter.encrypt(to_send))
-        except:
-            print("An error occured with send")
-        else:
-            return result
+        return self.socket.send(self.encrypter.encrypt(to_send))
+
 
     def secure_recv(self):
-        try:
-            result = self.encrypter.decrypt(self.socket.recv(self.buffer))
-        except:
-            print("An error occured with send")
-        else:
-            return result
+        return self.encrypter.decrypt(self.socket.recv(self.buffer))
+
 
 class user(secure_socket):
     def __init__(self, key, connection, username, buffer=2048):
