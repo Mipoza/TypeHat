@@ -15,7 +15,7 @@ def listenning():
 #make a refresh
 
 def new_user_in(user):
-    for u in serv.user_list:
+    for u in serv.user_list: #mb thread for each request ?
         u.secure_send(user.username + " has join the chat !")
 
 def wait_recv(user):
