@@ -41,9 +41,15 @@ class ss_serv():
     def wait_connect(self):
         try:
             connection, infos = self.socket.accept()
-            connection.send(self.key_RSA.publickey().export_key())
-            enc_key = connection.recv(self.buffer)
 
+            try:
+                rsa_pub = self.key_RSA.publickey().export_key()
+            except:
+                rsa_pub = self.key_RSA.publickey().exportKey()
+
+            connection.send(rsa_pub) #for new Crypto use .export_key()
+            enc_key = connection.recv(self.buffer)
+            
             cipher_rsa = PKCS1_OAEP.new(self.key_RSA)
             self.key = cipher_rsa.decrypt(enc_key)
 

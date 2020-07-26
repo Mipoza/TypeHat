@@ -16,7 +16,10 @@ def listenning():
 
 def new_user_in(user):
     for u in serv.user_list: #mb thread for each request ?
-        u.secure_send(user.username + " has join the chat !")
+        try:
+            u.secure_send(user.username + " has join the chat !")
+        except:
+            pass #is disconneted ?
 
 def wait_recv(user):
     pass
