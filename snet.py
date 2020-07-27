@@ -67,8 +67,6 @@ class ss_serv():
 
             new_user.username = username
             new_user.random_esc = rand
-            print(new_user.random_esc)
-
 
             ss_serv.user_list.append(new_user)
         except socket.error as err:

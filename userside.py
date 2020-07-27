@@ -21,6 +21,35 @@ class Worker(QObject):
         self.finished.emit()
 
 '''
+
+def action(data):
+    global user
+    to_do = data
+    try:
+        to_do = to_do[:4]
+    except:
+        print("error coorupted")
+    return to_do
+
+def action_u(data):
+    global user
+    username = data
+    try:
+        username = username[4:data.find(user.random_esc)]
+    except:
+        print("error coorupted data")
+    return username
+
+def action_c(data):
+    global user
+    content = data
+    try:
+        content = content[data.find(user.random_esc)+len(user.random_esc):]
+        
+    except:
+        print("error coorupted data")
+    return content
+
 def wait_recv():
     global user
     while True:
@@ -28,7 +57,12 @@ def wait_recv():
             data = user.secure_recv() #dont forget later for image
             data = data.decode()
 
-            window.chat_ui.add_msg(data)
+            to_do = action(data)
+
+            if to_do == "mesg":
+                window.chat_ui.add_msg(data)
+            elif to_do == "join":
+                window.chat_ui.join_msg(data)
         except:
             user.socket.close()
             print("Error server was closed") #handled graphicly
@@ -52,11 +86,15 @@ class chat_view(QListView):
     def add_msg(self, msg):
         if user == None: 
             print("user is none")
+        else:
+            item = message_item(action_u(msg)+": "+action_c(msg))
+        self.model.appendRow(item)
+        
+    def join_msg(self, msg):
+        if user == None: 
+            print("user is none")
         else: 
-            if msg == user.username+" has join the chat !":
-                item = message_item(msg)
-            else:
-                item = message_item(user.username+": "+msg)
+            item = message_item(action_u(msg)+action_c(msg))
         self.model.appendRow(item)
 
 class main_window(QMainWindow):
@@ -151,8 +189,11 @@ class main_window(QMainWindow):
 
     def send_msg(self): #real send
         #self.chat_ui.add_msg(self.line_msg.text())
+        msg = self.line_msg.text()
+        self.line_msg.clear()
         try:
-            user.secure_send(self.line_msg.text())
+            user.secure_send("mesg"+user.username+user.random_esc+msg)
+            
             #self.chat_ui.add_msg(data.decode()) #maybe json for spe carac ?
         except:
             print("Error with socket sending or recive") #print error in red in chat ?
@@ -203,8 +244,8 @@ def connecting(host, port, username):
 
     user = snet.user(key, connexion, username)
 
-    print(user.random_esc)
     user.secure_send(username + "*/randesc/*" + user.random_esc)
+    
 
     main_window.thread_recv.start() #end it with close
     return True

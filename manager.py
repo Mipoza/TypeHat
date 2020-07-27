@@ -18,25 +18,55 @@ def listenning():
 def new_user_in(user):
     for u in serv.user_list: #mb thread for each request ?
         try:
-            u.secure_send(user.username + " has join the chat !")
+            u.secure_send("join"+ user.username + u.random_esc +" has join the chat !")
         except:
             pass #is disconneted ?
+
+def action(data):
+    global user
+    to_do = data
+    try:
+        to_do = to_do[:4]
+    except:
+        print("error coorupted")
+    return to_do
+
+def action_c(data,user):
+    content = data
+    try:
+        content = content[data.find(user.random_esc)+len(user.random_esc):]
+        
+    except:
+        print("error coorupted data")
+    return content
+
+def action_u(data,user):
+    username = data
+    try:
+        username = username[4:data.find(user.random_esc)]
+    except:
+        print("error coorupted data")
+    return username
+
 
 def wait_recv(user):
     while True:
         try:
             data = user.secure_recv() #dont forget later for image
             data = data.decode()
-            send_all(data)
+            #what to do
+            to_do = action(data)
+            if to_do == "mesg":
+                send_all(data,user)
         except:
             user.socket.close()
             print("Error with client, certainly closed")
             break
 
-def send_all(msg):
+def send_all(msg,sender):
     for u in serv.user_list: #mb thread for each request ?
         try:
-            u.secure_send(u.username + " " + msg)
+            u.secure_send("mesg" + action_u(msg,sender) + u.random_esc + action_c(msg,sender))
         except:
             print("error")
 
