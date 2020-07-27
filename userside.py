@@ -29,6 +29,7 @@ def action(data):
         to_do = to_do[:4]
     except:
         print("error coorupted")
+        to_do = ""
     return to_do
 
 def action_u(data):
@@ -38,6 +39,7 @@ def action_u(data):
         username = username[4:data.find(user.random_esc)]
     except:
         print("error coorupted data")
+        username = ""
     return username
 
 def action_c(data):
@@ -45,9 +47,9 @@ def action_c(data):
     content = data
     try:
         content = content[data.find(user.random_esc)+len(user.random_esc):]
-        
     except:
         print("error coorupted data")
+        content = ""
     return content
 
 def wait_recv():
@@ -63,6 +65,8 @@ def wait_recv():
                 window.chat_ui.add_msg(data)
             elif to_do == "join":
                 window.chat_ui.join_msg(data)
+            elif to_do == "quit":
+                window.chat_ui.leave_msg(data)
         except:
             user.socket.close()
             print("Error server was closed") #handled graphicly
@@ -82,8 +86,10 @@ class chat_view(QListView):
         self.model = QStandardItemModel(self)
         self.setStyleSheet("QListView::item:hover {background: transparent;}")
         self.setModel(self.model)
+        self.list_username = []
 
     def add_msg(self, msg):
+        print(self.list_username)
         if user == None: 
             print("user is none")
         else:
@@ -94,7 +100,23 @@ class chat_view(QListView):
         if user == None: 
             print("user is none")
         else: 
-            item = message_item(action_u(msg)+action_c(msg))
+            item = message_item(action_u(msg)+" has join the chat !")
+
+        print(action_c(msg))
+        self.list_username.append(action_u(msg))
+        self.model.appendRow(item)
+    
+    def leave_msg(self, msg):
+        if user == None: 
+            print("user is none")
+        else: 
+            item = message_item(action_u(msg)+" has leave the chat !")
+
+        try:
+            self.list_username.pop(self.list_username.index(action_u(msg)))
+        except:
+            print("username not in list")
+
         self.model.appendRow(item)
 
 class main_window(QMainWindow):
@@ -107,7 +129,7 @@ class main_window(QMainWindow):
         #connect
 
         self.line_ip = QLineEdit("127.0.0.1")
-        self.line_port = QLineEdit("2050")
+        self.line_port = QLineEdit("2157")
         self.line_user = QLineEdit("Mipoza")
 
         self.connect = QPushButton("Connect")
@@ -193,7 +215,6 @@ class main_window(QMainWindow):
         self.line_msg.clear()
         try:
             user.secure_send("mesg"+user.username+user.random_esc+msg)
-            
             #self.chat_ui.add_msg(data.decode()) #maybe json for spe carac ?
         except:
             print("Error with socket sending or recive") #print error in red in chat ?
@@ -210,6 +231,11 @@ class main_window(QMainWindow):
             self.send.click()
 
     def closeEvent(self,e):
+        if user != None:
+            try:
+                user.secure_send("quit"+user.username+user.random_esc)
+            except:
+                print("error sending leave")
         os._exit(0)
 
 

@@ -1,4 +1,4 @@
-import socket, random, string, os
+import socket, random, string, os, json
 from cryptography.fernet import Fernet
 from Crypto.PublicKey import RSA
 from Crypto.Cipher import PKCS1_OAEP
@@ -38,6 +38,13 @@ class ss_serv():
     
     def listen(self, max):
         self.socket.listen(max)
+    
+    def ul_str():
+        l = []
+        for u in ss_serv.user_list: #try ?
+            l.append(u.username)
+        
+        return json.dumps(l)
     
     def wait_connect(self):
         try:

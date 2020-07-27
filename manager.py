@@ -1,14 +1,14 @@
-import snet
-import threading
+import snet, threading, json
 from cryptography.fernet import Fernet
 
-serv = snet.ss_serv(2050)
+serv = snet.ss_serv(2162)
 
-def listenning():
+def listenning(): 
     serv.listen(10)
     while True:
         serv.wait_connect()
         new_user_in(serv.user_list[-1])
+
         threading.Thread(target=wait_recv,args=[serv.user_list[-1]]).start()
         #entered blabla
         #thread for wait message
@@ -18,9 +18,9 @@ def listenning():
 def new_user_in(user):
     for u in serv.user_list: #mb thread for each request ?
         try:
-            u.secure_send("join"+ user.username + u.random_esc +" has join the chat !")
+            u.secure_send("join"+ user.username + u.random_esc + snet.ss_serv.ul_str())
         except:
-            pass #is disconneted ?
+            print("fuck")
 
 def action(data):
     global user
@@ -29,15 +29,16 @@ def action(data):
         to_do = to_do[:4]
     except:
         print("error coorupted")
+        to_do = ""
     return to_do
 
 def action_c(data,user):
     content = data
     try:
         content = content[data.find(user.random_esc)+len(user.random_esc):]
-        
     except:
         print("error coorupted data")
+        content = ""
     return content
 
 def action_u(data,user):
@@ -46,6 +47,7 @@ def action_u(data,user):
         username = username[4:data.find(user.random_esc)]
     except:
         print("error coorupted data")
+        username = ""
     return username
 
 
@@ -57,21 +59,38 @@ def wait_recv(user):
             #what to do
             to_do = action(data)
             if to_do == "mesg":
-                send_all(data,user)
+                send_all(to_do,data,user)
+            elif to_do == "quit":
+                leaved(user)
+                send_all(to_do,data,user)
+                return
         except:
             user.socket.close()
+            leaved(user)
+            for u in serv.user_list:
+                try:
+                    u.secure_send("quit" + user.username + u.random_esc + snet.ss_serv.ul_str())
+                except:
+                    print("error")
             print("Error with client, certainly closed")
             break
 
-def send_all(msg,sender):
+def leaved(user):
+    try:
+        serv.user_list.pop(serv.user_list.index(user))
+    except:
+        print("delete failed")
+
+
+def send_all(act,msg,sender):
     for u in serv.user_list: #mb thread for each request ?
         try:
-            u.secure_send("mesg" + action_u(msg,sender) + u.random_esc + action_c(msg,sender))
+            u.secure_send(act + action_u(msg,sender) + u.random_esc + action_c(msg,sender))
         except:
             print("error")
 
 
-if __name__ == "__main__":
+if __name__ == "__main__": #make a console
     listenning()
     
 
