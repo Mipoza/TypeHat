@@ -27,6 +27,7 @@ def wait_recv():
         try:
             data = user.secure_recv() #dont forget later for image
             data = data.decode()
+
             window.chat_ui.add_msg(data)
         except:
             user.socket.close()
@@ -68,7 +69,7 @@ class main_window(QMainWindow):
         #connect
 
         self.line_ip = QLineEdit("127.0.0.1")
-        self.line_port = QLineEdit("2012")
+        self.line_port = QLineEdit("2050")
         self.line_user = QLineEdit("Mipoza")
 
         self.connect = QPushButton("Connect")
@@ -147,9 +148,15 @@ class main_window(QMainWindow):
             self.connect.setEnabled(True)
         else:
             self.connect.setEnabled(False)
-    
-    def send_msg(self):
-        self.chat_ui.add_msg(self.line_msg.text())
+
+    def send_msg(self): #real send
+        #self.chat_ui.add_msg(self.line_msg.text())
+        try:
+            user.secure_send(self.line_msg.text())
+            #self.chat_ui.add_msg(data.decode()) #maybe json for spe carac ?
+        except:
+            print("Error with socket sending or recive") #print error in red in chat ?
+
     
     def check_len(self):
         if len(self.line_msg.text()) > 0:
@@ -196,7 +203,8 @@ def connecting(host, port, username):
 
     user = snet.user(key, connexion, username)
 
-    user.secure_send(username)
+    print(user.random_esc)
+    user.secure_send(username + "*/randesc/*" + user.random_esc)
 
     main_window.thread_recv.start() #end it with close
     return True

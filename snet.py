@@ -1,4 +1,4 @@
-import socket
+import socket, random, string, os
 from cryptography.fernet import Fernet
 from Crypto.PublicKey import RSA
 from Crypto.Cipher import PKCS1_OAEP
@@ -25,6 +25,7 @@ class user(secure_socket):
     def __init__(self, key, connection, username, buffer=2048):
         secure_socket.__init__(self, key, connection, buffer)
         self.username = username
+        self.random_esc = ''.join(random.choice(string.ascii_letters+string.digits) for i in range(32))
 
 class ss_serv():
     user_list = [] #make user class and make this an users list
@@ -54,8 +55,20 @@ class ss_serv():
             self.key = cipher_rsa.decrypt(enc_key)
 
             new_user = user(self.key, connection, "",self.buffer)
-            username = new_user.secure_recv()
-            new_user.username = username.decode()
+            usernameandrand = new_user.secure_recv()
+            usernameandrand = usernameandrand.decode()
+
+            try:
+                username = usernameandrand[:(usernameandrand.find("*/randesc/*"))]
+                rand = usernameandrand[(usernameandrand.find("*/randesc/*")+11):]
+            except:
+                print("Error no escp, may be security brech, closing")
+                os._exit(0)
+
+            new_user.username = username
+            new_user.random_esc = rand
+            print(new_user.random_esc)
+
 
             ss_serv.user_list.append(new_user)
         except socket.error as err:
