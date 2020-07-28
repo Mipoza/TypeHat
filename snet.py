@@ -4,7 +4,7 @@ from Crypto.PublicKey import RSA
 from Crypto.Cipher import PKCS1_OAEP
 
 class secure_socket:
-    def __init__(self, key, socket, buffer=2048):
+    def __init__(self, key, socket, buffer=4096):
         self.key = key
         self.encrypter = Fernet(key)
         self.socket = socket
@@ -22,22 +22,24 @@ class secure_socket:
 
 
 class user(secure_socket):
-    def __init__(self, key, connection, username, buffer=2048):
+    def __init__(self, key, connection, username, buffer=4096):
         secure_socket.__init__(self, key, connection, buffer)
         self.username = username
         self.random_esc = ''.join(random.choice(string.ascii_letters+string.digits) for i in range(32))
 
 class ss_serv(): #
     user_list = [] #make user class and make this an users list
-    def __init__(self, port, buffer=2048):
+    def __init__(self, port, password="", buffer=4096):
         self.port = port
         self.socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self.buffer = buffer
-        self.socket.bind(('',self.port))
+        self.socket.bind(("",self.port))
+        self.password = password
         self.key_RSA = RSA.generate(2048)
     
     def listen(self, max):
         self.socket.listen(max)
+    
     
     def ul_str():
         l = []
@@ -62,19 +64,31 @@ class ss_serv(): #
             self.key = cipher_rsa.decrypt(enc_key)
 
             new_user = user(self.key, connection, "",self.buffer)
-            usernameandrand = new_user.secure_recv()
-            usernameandrand = usernameandrand.decode()
 
-            try:
-                username = usernameandrand[:(usernameandrand.find("*/randesc/*"))]
-                rand = usernameandrand[(usernameandrand.find("*/randesc/*")+11):]
-            except:
-                print("Error no escp, may be security brech, closing")
-                os._exit(0)
+            #here at user recv
 
-            new_user.username = username
-            new_user.random_esc = rand
+            password = new_user.secure_recv()
+            password = password.decode()
 
-            ss_serv.user_list.append(new_user)
+            if password == self.password:
+                new_user.secure_send("1")
+                usernameandrand = new_user.secure_recv()
+                usernameandrand = usernameandrand.decode()
+
+                try:
+                    username = usernameandrand[:(usernameandrand.find("*/randesc/*"))]
+                    rand = usernameandrand[(usernameandrand.find("*/randesc/*")+11):]
+                except:
+                    print("Error no escp, may be security brech, closing")
+                    os._exit(0)
+
+                new_user.username = username
+                new_user.random_esc = rand
+
+                ss_serv.user_list.append(new_user)
+                return True
+            else:
+                new_user.secure_send("0")
+                return False
         except socket.error as err:
             print("error occured for accepting socket : {}".format(err))

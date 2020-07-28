@@ -1,19 +1,18 @@
-import snet, threading, json
+import snet, threading, json, os
 from cryptography.fernet import Fernet
 
-serv = snet.ss_serv(2164)
+serv = None
 
 def listenning(): 
     serv.listen(10)
+    
     while True:
-        serv.wait_connect()
-        new_user_in(serv.user_list[-1])
-
-        threading.Thread(target=wait_recv,args=[serv.user_list[-1]]).start()
-        #entered blabla
-        #thread for wait message
-
-#make a refresh
+        r = serv.wait_connect()
+        if r == True:
+            new_user_in(serv.user_list[-1])
+            threading.Thread(target=wait_recv,args=[serv.user_list[-1]]).start()
+        else:
+            continue
 
 def new_user_in(user):
     for u in serv.user_list: #mb thread for each request ?
@@ -22,7 +21,7 @@ def new_user_in(user):
         except:
             print("fuck")
 
-def action(data):
+def get_action(data):
     global user
     to_do = data
     try:
@@ -32,7 +31,7 @@ def action(data):
         to_do = ""
     return to_do
 
-def action_c(data,user):
+def get_content(data,user):
     content = data
     try:
         content = content[data.find(user.random_esc)+len(user.random_esc):]
@@ -41,7 +40,7 @@ def action_c(data,user):
         content = ""
     return content
 
-def action_u(data,user):
+def get_username(data,user):
     username = data
     try:
         username = username[4:data.find(user.random_esc)]
@@ -50,14 +49,13 @@ def action_u(data,user):
         username = ""
     return username
 
-
 def wait_recv(user):
     while True:
         try:
             data = user.secure_recv() #dont forget later for image
             data = data.decode()
             #what to do
-            to_do = action(data)
+            to_do = get_action(data)
             if to_do == "mesg":
                 send_all(to_do,data,user)
             elif to_do == "quit":
@@ -81,17 +79,44 @@ def leaved(user):
         except:
             print("error")
 
-
 def send_all(act,msg,sender):
-    for u in serv.user_list: #mb thread for each request ?
+    for u in serv.user_list:
         try:
-            u.secure_send(act + action_u(msg,sender) + u.random_esc + action_c(msg,sender))
+            u.secure_send(act + get_username(msg,sender) + u.random_esc + get_content(msg,sender))
         except:
             print("error")
 
+if __name__ == "__main__": 
+    port = 2101
+    password = ""
+    started = False
 
-if __name__ == "__main__": #make a console
-    listenning()
+    print("""
+    Welcome to Secure Chat Server !
+    """)
+
+    while True:
+        action = input("> ")
+
+        if action == "start":
+            if not started:
+                started = True
+                serv = snet.ss_serv(port,password)
+                threading.Thread(target=listenning).start()
+                print("Server as started!")
+            else:
+                print("Server already started.")
+        elif action == "exit":
+            os._exit(0)
+        elif action[:4] == "port":
+            try:
+                port = int(action[5:])
+            except:
+                print("This is not a number.")
+        elif action[:4] == "pass":
+            password = action[5:]
+        else:
+            print("Unknow command")
     
 
 

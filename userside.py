@@ -4,38 +4,22 @@ from Crypto.PublicKey import RSA
 from Crypto.Cipher import PKCS1_OAEP
 from PyQt5.QtWidgets import QMessageBox, QApplication, QLabel, QMainWindow, QGroupBox, QVBoxLayout, QHBoxLayout, QLineEdit, QPushButton, QListView, QItemDelegate, QStyleOptionViewItem, QStyle, QDialog
 from PyQt5.QtCore import Qt, QRunnable, pyqtSlot, pyqtSignal, QThread, QThreadPool, QObject
-from PyQt5.QtGui import QStandardItemModel, QStandardItem, QIntValidator, QFont
+from PyQt5.QtGui import QStandardItemModel, QStandardItem, QIntValidator, QFont, QIcon
 
 user = None
 window = None
 
-'''
-thread = None
-
-class Worker(QObject):
-    finished = pyqtSignal()
-
-    @pyqtSlot()
-    def run(self, user):
-        threading.Thread(target=wait_recv,args=[user]).start()
-        self.finished.emit()
-
-'''
-
-#verifi 2k limit
-#add auto \n in listview
-
-def action(data):
+def get_action(data):
     global user
     to_do = data
     try:
         to_do = to_do[:4]
     except:
-        print("error coorupted")
+        print("error coorupted data")
         to_do = ""
     return to_do
 
-def action_u(data):
+def get_username(data):
     global user
     username = data
     try:
@@ -45,7 +29,7 @@ def action_u(data):
         username = ""
     return username
 
-def action_c(data):
+def get_content(data):
     global user
     content = data
     try:
@@ -62,7 +46,7 @@ def wait_recv():
             data = user.secure_recv() #dont forget later for image
             data = data.decode()
 
-            to_do = action(data)
+            to_do = get_action(data)
 
             if to_do == "mesg":
                 window.chat_ui.add_msg(data)
@@ -75,13 +59,55 @@ def wait_recv():
             print("Error server was closed") #handled graphicly
             os._exit(0)
 
+def connecting(host, port, username):
+    global user
+    
+    i = 0
+    while True: #cancel a 3 times
+        try:
+            connexion = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            connexion.connect((host, port))
+        except:
+            if i == 3:
+                return (False,"attempt")
+            time.sleep(0.5)
+        else:
+            break
+        i += 1
+    
+    key = Fernet.generate_key()
+    key_RSA = connexion.recv(2048)
+
+    try:
+        recipient_key = RSA.imporimport_keytKey(key_RSA)
+    except:
+        recipient_key = RSA.importKey(key_RSA)
+
+    cipher_rsa = PKCS1_OAEP.new(recipient_key)
+    enc_session_key = cipher_rsa.encrypt(key)
+
+    connexion.send(enc_session_key)
+
+    user = snet.user(key, connexion, username)
+
+    password = window.line_pass.text()
+
+    user.secure_send(password)
+    is_correct = user.secure_recv()
+    is_correct = is_correct.decode()
+
+    if is_correct == "1":
+        user.secure_send(username + "*/randesc/*" + user.random_esc)
+        main_window.thread_recv.start() #end it with close
+        return (True,"")
+    else:
+        return (False,"pass")
        
 class message_item(QStandardItem):
     def __init__(self, text):
         super(message_item, self).__init__(text)
         self.setEditable(False)
         self.setSelectable(False)
-        
 
 class chat_view(QListView):
     def __init__(self):
@@ -90,21 +116,22 @@ class chat_view(QListView):
         self.setStyleSheet("QListView::item:hover {background: transparent;}")
         self.setModel(self.model)
         self.list_username = []
+        self.setWordWrap(True)
 
     def add_msg(self, msg):
         if user == None: 
             print("user is none")
         else:
-            item = message_item(action_u(msg)+": "+action_c(msg))
+            item = message_item(get_username(msg)+" : "+get_content(msg))
         self.model.appendRow(item)
         
     def join_msg(self, msg):
         if user == None: 
             print("user is none")
         else: 
-            item = message_item(action_u(msg)+" has join the chat !")
+            item = message_item(get_username(msg)+" has join the chat !")
         try:
-            self.list_username = json.loads(action_c(msg))
+            self.list_username = json.loads(get_content(msg))
         except:
             print("Error with json parse")
         else:
@@ -116,10 +143,10 @@ class chat_view(QListView):
         if user == None: 
             print("user is none")
         else: 
-            item = message_item(action_u(msg)+" has leave the chat !")
+            item = message_item(get_username(msg)+" has leave the chat !")
 
         try:
-            self.list_username = json.loads(action_c(msg))
+            self.list_username = json.loads(get_content(msg))
         except:
             print("username not in list")
         else:
@@ -143,6 +170,7 @@ class users_view(QListView):
             font.setPointSize(11)
             item.setFont(font)
             self.model.appendRow(item)
+            self.model.insertRow(2,message_item(u))
 
 
 class main_window(QMainWindow):
@@ -155,11 +183,15 @@ class main_window(QMainWindow):
         #connect
 
         self.line_ip = QLineEdit("127.0.0.1")
-        self.line_port = QLineEdit("2164")
+        self.line_port = QLineEdit("2101")
         self.line_user = QLineEdit("Mipoza")
+        self.line_pass = QLineEdit()
+        
+        self.line_pass.setEchoMode(QLineEdit.Password)
+        self.line_pass.setPlaceholderText("Optionnal")
 
         self.connect = QPushButton("Connect")
-        self.connect.setEnabled(False)
+        self.connect.setEnabled(self.line_ip.text() != "")
 
         self.line_ip .setPlaceholderText("IP address or dns")
         self.line_port.setPlaceholderText("Port number")
@@ -172,6 +204,7 @@ class main_window(QMainWindow):
         lay.addWidget(self.line_ip )
         lay.addWidget(self.line_port)
         lay.addWidget(self.line_user)
+        lay.addWidget(self.line_pass)
         lay.addWidget(self.connect)
         
         self.box_connection = QGroupBox("Connection")
@@ -225,12 +258,15 @@ class main_window(QMainWindow):
         self.connect.setEnabled(False)
         r = connecting(self.line_ip.text(),int(self.line_port.text()),self.line_user.text())
 
-        if r:
+        if r[0]:
             self.box_connection.setVisible(False)
             self.box_connection.setEnabled(False)
             self.box_chat.setVisible(True)
             self.setCentralWidget(self.box_chat)
             self.resize(650,500)
+        elif r[1] == "pass":
+            self.connect.setEnabled(True)
+            QMessageBox.critical(self, "Error with connection","Wrong password.",QMessageBox.Close)
         else:
             self.connect.setEnabled(True)
             QMessageBox.critical(self, "Error with connection","Server was not found.",QMessageBox.Close)
@@ -249,18 +285,21 @@ class main_window(QMainWindow):
             user.secure_send("mesg"+user.username+user.random_esc+msg)
             #self.chat_ui.add_msg(data.decode()) #maybe json for spe carac ?
         except:
-            print("Error with socket sending or recive") #print error in red in chat ?
+            print("Error with socket sending") #print error in red in chat ?
 
     
     def check_len(self):
-        if len(self.line_msg.text()) > 0:
+        if len(self.line_msg.text()) > 0 and len(self.line_msg.text()) <= 2000:
             self.send.setEnabled(True)
         else:
             self.send.setEnabled(False)
 
     def keyPressEvent(self, e):
         if e.key()  == Qt.Key_Return:
-            self.send.click()
+            if self.box_chat.isVisible():
+                self.send.click()
+            else:
+                self.connect.click()
 
     def closeEvent(self,e):
         if user != None:
@@ -270,59 +309,10 @@ class main_window(QMainWindow):
                 print("error sending leave")
         os._exit(0)
 
-
-def connecting(host, port, username):
-    global user
-    
-    i = 0
-    while True: #cancel a 3 times
-        try:
-            connexion = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-            connexion.connect((host, port))
-        except:
-            if i == 3:
-                return False
-            time.sleep(0.5)
-        else:
-            break
-        i += 1
-    
-    key = Fernet.generate_key()
-    key_RSA = connexion.recv(2048)
-
-    try:
-        recipient_key = RSA.imporimport_keytKey(key_RSA)
-    except:
-        recipient_key = RSA.importKey(key_RSA)
-
-    cipher_rsa = PKCS1_OAEP.new(recipient_key)
-    enc_session_key = cipher_rsa.encrypt(key)
-
-    connexion.send(enc_session_key)
-
-    user = snet.user(key, connexion, username)
-
-    user.secure_send(username + "*/randesc/*" + user.random_esc)
-    
-
-    main_window.thread_recv.start() #end it with close
-    return True
-
-
-
-
-
 if __name__ == "__main__":
-    #username = str(input("Enter an username: "))
-    
-    
-    #send msg, gui etc with PyQt5
     app = QApplication(sys.argv)
 
     window = main_window()
     window.show()
-
-    #box = connection_box()
-    #box.exec()
 
     app.exec_()
