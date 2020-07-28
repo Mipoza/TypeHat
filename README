@@ -3,4 +3,4 @@ A simple utility to have safe and secure communication.
 for python3
 require crypto, cryptography, PyQt5 (use pip)
 
-![Alt text](banner.png?raw=true "App")
+![Alt text](/banner.png?raw=true "App")
