@@ -170,7 +170,6 @@ class users_view(QListView):
             font.setPointSize(11)
             item.setFont(font)
             self.model.appendRow(item)
-            self.model.insertRow(2,message_item(u))
 
 
 class main_window(QMainWindow):
