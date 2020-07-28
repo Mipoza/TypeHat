@@ -117,6 +117,7 @@ class chat_view(QListView):
         self.setModel(self.model)
         self.list_username = []
         self.setWordWrap(True)
+        self.setFocusPolicy(Qt.NoFocus)
 
     def add_msg(self, msg):
         if user == None: 
@@ -161,7 +162,8 @@ class users_view(QListView):
         self.setStyleSheet("QListView::item:hover {background: transparent;}")
         self.setModel(self.model)
         self.setStyleSheet("QListView::item {color: #6a6a6a;}")
-    
+        self.setFocusPolicy(Qt.NoFocus)
+
     def refresh(self):
         self.model.clear()
         for u in window.chat_ui.list_username:
