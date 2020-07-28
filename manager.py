@@ -1,7 +1,7 @@
 import snet, threading, json
 from cryptography.fernet import Fernet
 
-serv = snet.ss_serv(2162)
+serv = snet.ss_serv(2164)
 
 def listenning(): 
     serv.listen(10)
@@ -62,16 +62,10 @@ def wait_recv(user):
                 send_all(to_do,data,user)
             elif to_do == "quit":
                 leaved(user)
-                send_all(to_do,data,user)
                 return
         except:
             user.socket.close()
             leaved(user)
-            for u in serv.user_list:
-                try:
-                    u.secure_send("quit" + user.username + u.random_esc + snet.ss_serv.ul_str())
-                except:
-                    print("error")
             print("Error with client, certainly closed")
             break
 
@@ -80,6 +74,12 @@ def leaved(user):
         serv.user_list.pop(serv.user_list.index(user))
     except:
         print("delete failed")
+    
+    for u in serv.user_list:
+        try:
+            u.secure_send("quit" + user.username + u.random_esc + snet.ss_serv.ul_str())
+        except:
+            print("error")
 
 
 def send_all(act,msg,sender):

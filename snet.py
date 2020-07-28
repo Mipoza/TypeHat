@@ -27,7 +27,7 @@ class user(secure_socket):
         self.username = username
         self.random_esc = ''.join(random.choice(string.ascii_letters+string.digits) for i in range(32))
 
-class ss_serv():
+class ss_serv(): #
     user_list = [] #make user class and make this an users list
     def __init__(self, port, buffer=2048):
         self.port = port

@@ -1,10 +1,10 @@
-import snet, socket, time, threading, os, sys
+import snet, socket, time, threading, os, sys, json
 from cryptography.fernet import Fernet
 from Crypto.PublicKey import RSA
 from Crypto.Cipher import PKCS1_OAEP
 from PyQt5.QtWidgets import QMessageBox, QApplication, QLabel, QMainWindow, QGroupBox, QVBoxLayout, QHBoxLayout, QLineEdit, QPushButton, QListView, QItemDelegate, QStyleOptionViewItem, QStyle, QDialog
 from PyQt5.QtCore import Qt, QRunnable, pyqtSlot, pyqtSignal, QThread, QThreadPool, QObject
-from PyQt5.QtGui import QStandardItemModel, QStandardItem, QIntValidator
+from PyQt5.QtGui import QStandardItemModel, QStandardItem, QIntValidator, QFont
 
 user = None
 window = None
@@ -21,6 +21,9 @@ class Worker(QObject):
         self.finished.emit()
 
 '''
+
+#verifi 2k limit
+#add auto \n in listview
 
 def action(data):
     global user
@@ -89,7 +92,6 @@ class chat_view(QListView):
         self.list_username = []
 
     def add_msg(self, msg):
-        print(self.list_username)
         if user == None: 
             print("user is none")
         else:
@@ -101,9 +103,13 @@ class chat_view(QListView):
             print("user is none")
         else: 
             item = message_item(action_u(msg)+" has join the chat !")
+        try:
+            self.list_username = json.loads(action_c(msg))
+        except:
+            print("Error with json parse")
+        else:
+            window.users_list_ui.refresh()
 
-        print(action_c(msg))
-        self.list_username.append(action_u(msg))
         self.model.appendRow(item)
     
     def leave_msg(self, msg):
@@ -113,11 +119,31 @@ class chat_view(QListView):
             item = message_item(action_u(msg)+" has leave the chat !")
 
         try:
-            self.list_username.pop(self.list_username.index(action_u(msg)))
+            self.list_username = json.loads(action_c(msg))
         except:
             print("username not in list")
+        else:
+            window.users_list_ui.refresh()
 
         self.model.appendRow(item)
+
+class users_view(QListView):
+    def __init__(self):
+        super(users_view, self).__init__()
+        self.model = QStandardItemModel(self)
+        self.setStyleSheet("QListView::item:hover {background: transparent;}")
+        self.setModel(self.model)
+        self.setStyleSheet("QListView::item {color: #6a6a6a;}")
+    
+    def refresh(self):
+        self.model.clear()
+        for u in window.chat_ui.list_username:
+            item = message_item(u)
+            font = item.font()
+            font.setPointSize(11)
+            item.setFont(font)
+            self.model.appendRow(item)
+
 
 class main_window(QMainWindow):
     thread_recv = threading.Thread(target=wait_recv)
@@ -129,7 +155,7 @@ class main_window(QMainWindow):
         #connect
 
         self.line_ip = QLineEdit("127.0.0.1")
-        self.line_port = QLineEdit("2157")
+        self.line_port = QLineEdit("2164")
         self.line_user = QLineEdit("Mipoza")
 
         self.connect = QPushButton("Connect")
@@ -167,6 +193,7 @@ class main_window(QMainWindow):
 
         hlay = QVBoxLayout()
         msg_lay = QHBoxLayout()
+        list_lay = QHBoxLayout()
 
         self.line_msg = QLineEdit()
         self.line_msg.setPlaceholderText("Enter a message")
@@ -175,6 +202,8 @@ class main_window(QMainWindow):
         self.send.setEnabled(False)
 
         self.chat_ui = chat_view()
+        self.users_list_ui = users_view()
+        self.users_list_ui.setMaximumWidth(175)
 
         msg_lay.addWidget(self.line_msg)
         msg_lay.addWidget(self.send)
@@ -182,7 +211,10 @@ class main_window(QMainWindow):
         hlay.addWidget(self.chat_ui)
         hlay.addLayout(msg_lay)
 
-        self.box_chat.setLayout(hlay)
+        list_lay.addWidget(self.users_list_ui)
+        list_lay.addLayout(hlay)
+
+        self.box_chat.setLayout(list_lay)
 
         #self.resize(600,500)
 
@@ -198,7 +230,7 @@ class main_window(QMainWindow):
             self.box_connection.setEnabled(False)
             self.box_chat.setVisible(True)
             self.setCentralWidget(self.box_chat)
-            self.resize(600,500)
+            self.resize(650,500)
         else:
             self.connect.setEnabled(True)
             QMessageBox.critical(self, "Error with connection","Server was not found.",QMessageBox.Close)
@@ -233,7 +265,7 @@ class main_window(QMainWindow):
     def closeEvent(self,e):
         if user != None:
             try:
-                user.secure_send("quit"+user.username+user.random_esc)
+                user.secure_send("quit"+user.username+user.random_esc+json.dumps(window.chat_ui.list_username))
             except:
                 print("error sending leave")
         os._exit(0)
