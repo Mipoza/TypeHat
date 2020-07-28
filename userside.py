@@ -179,10 +179,9 @@ class main_window(QMainWindow):
     def __init__(self, *args, **kwargs):
         super(main_window, self).__init__(*args, **kwargs)
         self.setWindowTitle("Secure Chat")
-        self.setContentsMargins(10,10,10,10)
-
+        #self.setContentsMargins(10,10,10,10)
+        
         #connect
-
         self.line_ip = QLineEdit("127.0.0.1")
         self.line_port = QLineEdit("2101")
         self.line_user = QLineEdit("Mipoza")
@@ -247,7 +246,7 @@ class main_window(QMainWindow):
 
         list_lay.addWidget(self.users_list_ui)
         list_lay.addLayout(hlay)
-
+        list_lay.setContentsMargins(13,0,13,13)
         self.box_chat.setLayout(list_lay)
 
         #self.resize(600,500)

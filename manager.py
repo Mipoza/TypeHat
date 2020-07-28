@@ -101,7 +101,7 @@ if __name__ == "__main__":
         if action == "start":
             if not started:
                 started = True
-                serv = snet.ss_serv(port,password)
+                serv = snet.ss_serv(port,password) #try
                 threading.Thread(target=listenning).start()
                 print("Server as started!")
             else:
