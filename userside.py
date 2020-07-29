@@ -2,9 +2,9 @@ import snet, socket, time, threading, os, sys, json
 from cryptography.fernet import Fernet
 from Crypto.PublicKey import RSA
 from Crypto.Cipher import PKCS1_OAEP
-from PyQt5.QtWidgets import QMessageBox, QApplication, QLabel, QMainWindow, QGroupBox, QVBoxLayout, QHBoxLayout, QLineEdit, QPushButton, QListView, QItemDelegate, QStyleOptionViewItem, QStyle, QDialog
-from PyQt5.QtCore import Qt, QRunnable, pyqtSlot, pyqtSignal, QThread, QThreadPool, QObject
-from PyQt5.QtGui import QStandardItemModel, QStandardItem, QIntValidator, QFont, QIcon
+from PyQt5.QtWidgets import QMessageBox, QApplication, QFileDialog, QLabel, QMainWindow, QGroupBox, QVBoxLayout, QHBoxLayout, QLineEdit, QPushButton, QListView, QItemDelegate, QStyleOptionViewItem, QStyle, QDialog
+from PyQt5.QtCore import Qt, QRunnable, pyqtSlot, pyqtSignal, QThread, QThreadPool, QObject, QSize
+from PyQt5.QtGui import QStandardItemModel, QStandardItem, QIntValidator, QFont, QIcon, QPixmap
 
 user = None
 window = None
@@ -54,6 +54,11 @@ def wait_recv():
                 window.chat_ui.join_msg(data)
             elif to_do == "quit":
                 window.chat_ui.leave_msg(data)
+            elif to_do == "imag":
+                im = user.secure_revc_big(int(get_content(data)))
+                window.chat_ui.image_msg(im, get_username(data))
+            elif to_do == "file":
+                print("file")
         except:
             user.socket.close()
             print("Error server was closed") #handled graphicly
@@ -118,19 +123,23 @@ class chat_view(QListView):
         self.list_username = []
         self.setWordWrap(True)
         self.setFocusPolicy(Qt.NoFocus)
+        self.setIconSize(QSize(550, 550)) 
+
 
     def add_msg(self, msg):
         if user == None: 
             print("user is none")
         else:
             item = message_item(get_username(msg)+" : "+get_content(msg))
-        self.model.appendRow(item)
+            self.model.appendRow(item)
+
         
     def join_msg(self, msg):
         if user == None: 
             print("user is none")
         else: 
             item = message_item(get_username(msg)+" has join the chat !")
+            self.model.appendRow(item)
         try:
             self.list_username = json.loads(get_content(msg))
         except:
@@ -138,13 +147,14 @@ class chat_view(QListView):
         else:
             window.users_list_ui.refresh()
 
-        self.model.appendRow(item)
+        
     
     def leave_msg(self, msg):
         if user == None: 
             print("user is none")
         else: 
             item = message_item(get_username(msg)+" has leave the chat !")
+            self.model.appendRow(item)
 
         try:
             self.list_username = json.loads(get_content(msg))
@@ -152,8 +162,17 @@ class chat_view(QListView):
             print("username not in list")
         else:
             window.users_list_ui.refresh()
-
+        
+    def image_msg(self, im, username):
+        item = message_item(username+" :")
         self.model.appendRow(item)
+        item = message_item("")
+        pix = QPixmap()
+        pix.loadFromData(im)
+        item.setIcon(QIcon(pix))
+        self.model.appendRow(item)
+
+        
 
 class users_view(QListView):
     def __init__(self):
@@ -230,9 +249,11 @@ class main_window(QMainWindow):
 
         self.line_msg = QLineEdit()
         self.line_msg.setPlaceholderText("Enter a message")
-
         self.send = QPushButton("Send")
         self.send.setEnabled(False)
+        self.send_f = QPushButton()
+
+        self.send_f.setIcon(QIcon("add.png"))
 
         self.chat_ui = chat_view()
         self.users_list_ui = users_view()
@@ -240,6 +261,7 @@ class main_window(QMainWindow):
 
         msg_lay.addWidget(self.line_msg)
         msg_lay.addWidget(self.send)
+        msg_lay.addWidget(self.send_f)
 
         hlay.addWidget(self.chat_ui)
         hlay.addLayout(msg_lay)
@@ -251,6 +273,7 @@ class main_window(QMainWindow):
 
         #self.resize(600,500)
 
+        self.send_f.clicked.connect(lambda:self.send_file())
         self.send.clicked.connect(lambda:self.send_msg())
         self.line_msg.textChanged.connect(lambda:self.check_len())
     
@@ -287,6 +310,29 @@ class main_window(QMainWindow):
         except:
             print("Error with socket sending") #print error in red in chat ?
 
+    def send_file(self):
+        file_name = QFileDialog.getOpenFileName(self, "Open Image", "/home/jana", "All Files (*.*)")
+        #if line_msg.etxt() != "" alors send text and put max size
+        if file_name[0] != "":
+            try:
+                input_f = open(file_name[0],"rb")
+                data = input_f.read()
+                input_f.close()
+            except:
+                QMessageBox.critical(self, "File Error","Cant open this file.",QMessageBox.Close)
+            else:
+                path_and_extension = os.path.splitext(file_name[0])
+                extension = path_and_extension[1]
+                try:
+                    if extension in [".png",".jpg",".jpeg",".bmp","gif",".svg"]: #image (allowed format)
+                        user.secure_send_big(data,"imag"+user.username+user.random_esc)
+                    else: #file
+                        user.secure_send_big(data,"file"+user.username+user.random_esc)
+                except:
+                    #QMessageBox.critical(self, "File send Error","An error occured witn file sending.",QMessageBox.Close
+                    print("error file sending")
+        else:
+            pass
     
     def check_len(self):
         if len(self.line_msg.text()) > 0 and len(self.line_msg.text()) <= 2000:

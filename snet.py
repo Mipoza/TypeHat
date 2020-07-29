@@ -1,4 +1,4 @@
-import socket, random, string, os, json
+import socket, random, string, os, json, time
 from cryptography.fernet import Fernet
 from Crypto.PublicKey import RSA
 from Crypto.Cipher import PKCS1_OAEP
@@ -19,6 +19,26 @@ class secure_socket:
 
     def secure_recv(self):
         return self.encrypter.decrypt(self.socket.recv(self.buffer))
+
+    def secure_send_big(self, data, action):
+        to_send = data
+        if(type(data) == str):
+            to_send = to_send.encode()
+
+        encrypted_data = self.encrypter.encrypt(to_send)
+        size = len(encrypted_data)
+
+        self.secure_send(action+str(size))
+        time.sleep(0.2)
+
+        return self.socket.send(encrypted_data)
+
+    def secure_revc_big(self, buffer):
+        data = b""
+        while len(data) < buffer:
+            data += self.socket.recv(buffer)
+
+        return self.encrypter.decrypt(data)
 
 
 class user(secure_socket):

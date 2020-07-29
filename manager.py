@@ -1,4 +1,4 @@
-import snet, threading, json, os
+import snet, threading, json, os, socket
 from cryptography.fernet import Fernet
 
 serv = None
@@ -61,7 +61,9 @@ def wait_recv(user):
             elif to_do == "quit":
                 leaved(user)
                 return
-        except socket.error:
+            elif to_do == "imag" or to_do == "file":
+                send_file(get_content(data,user), user, to_do)
+        except:
             user.socket.close()
             leaved(user)
             print("Error with client, certainly closed")
@@ -78,6 +80,18 @@ def leaved(user):
             u.secure_send("quit" + user.username + u.random_esc + snet.ss_serv.ul_str())
         except:
             print("error")
+
+def send_file(size, user, act):
+    data = user.secure_revc_big(int(size))
+    
+    for u in serv.user_list:
+        try:
+            u.secure_send_big(data, act + user.username + u.random_esc) #test
+        except:
+            print("error with file sending")
+    
+
+
 
 def send_all(act,msg,sender):
     for u in serv.user_list:
