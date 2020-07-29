@@ -2,7 +2,7 @@ import snet, socket, time, threading, os, sys, json
 from cryptography.fernet import Fernet
 from Crypto.PublicKey import RSA
 from Crypto.Cipher import PKCS1_OAEP
-from PyQt5.QtWidgets import QMessageBox, QApplication, QFileDialog, QLabel, QMainWindow, QGroupBox, QVBoxLayout, QHBoxLayout, QLineEdit, QPushButton, QListView, QItemDelegate, QStyleOptionViewItem, QStyle, QDialog
+from PyQt5.QtWidgets import QMessageBox, QApplication, QFileDialog, QAbstractItemView, QLabel, QMainWindow, QGroupBox, QVBoxLayout, QHBoxLayout, QLineEdit, QPushButton, QListView, QItemDelegate, QStyleOptionViewItem, QStyle, QDialog
 from PyQt5.QtCore import Qt, QRunnable, pyqtSlot, pyqtSignal, QThread, QThreadPool, QObject, QSize
 from PyQt5.QtGui import QStandardItemModel, QStandardItem, QIntValidator, QFont, QIcon, QPixmap
 
@@ -123,7 +123,13 @@ class chat_view(QListView):
         self.list_username = []
         self.setWordWrap(True)
         self.setFocusPolicy(Qt.NoFocus)
-        self.setIconSize(QSize(550, 550)) 
+        self.setIconSize(QSize(550, 550))
+        self.setVerticalScrollMode(QAbstractItemView.ScrollPerPixel)
+        self.setHorizontalScrollMode(QAbstractItemView.ScrollPerPixel)
+        self.model.rowsInserted.connect(lambda p:self.scrollToBottom())
+        
+        
+        
 
 
     def add_msg(self, msg):
@@ -132,7 +138,6 @@ class chat_view(QListView):
         else:
             item = message_item(get_username(msg)+" : "+get_content(msg))
             self.model.appendRow(item)
-
         
     def join_msg(self, msg):
         if user == None: 
@@ -173,7 +178,6 @@ class chat_view(QListView):
         self.model.appendRow(item)
 
         
-
 class users_view(QListView):
     def __init__(self):
         super(users_view, self).__init__()
