@@ -90,9 +90,6 @@ def send_file(size, user, act):
         except:
             print("error with file sending")
     
-
-
-
 def send_all(act,msg,sender):
     for u in serv.user_list:
         try:

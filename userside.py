@@ -58,7 +58,9 @@ def wait_recv():
                 im = user.secure_revc_big(int(get_content(data)))
                 window.chat_ui.image_msg(im, get_username(data))
             elif to_do == "file":
-                print("file")
+                print("here")
+                r = QMessageBox.question(self, "Error with connection","Wrong password.",QMessageBox.Yes | QMessageBox.No)
+                print(r)
         except:
             user.socket.close()
             print("Error server was closed") #handled graphicly
