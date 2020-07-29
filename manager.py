@@ -18,8 +18,8 @@ def new_user_in(user):
     for u in serv.user_list: #mb thread for each request ?
         try:
             u.secure_send("join"+ user.username + u.random_esc + snet.ss_serv.ul_str())
-        except:
-            print("fuck")
+        except socket.error as e:
+            print(e)
 
 def get_action(data):
     global user
@@ -61,7 +61,7 @@ def wait_recv(user):
             elif to_do == "quit":
                 leaved(user)
                 return
-        except:
+        except socket.error:
             user.socket.close()
             leaved(user)
             print("Error with client, certainly closed")
