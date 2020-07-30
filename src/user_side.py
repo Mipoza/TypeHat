@@ -39,11 +39,11 @@ def get_content(data):
         content = ""
     return content
 
-def wait_recv():
+def wait_recv(): #separate socket file and image
     global user
     while True:
         try:
-            data = user.secure_recv() #dont forget later for image
+            data = user.secure_recv() 
             data = data.decode()
 
             to_do = get_action(data)
@@ -145,7 +145,7 @@ class chat_view(QListView):
         if user == None: 
             print("user is none")
         else: 
-            item = message_item(get_username(msg)+" has join the chat !")
+            item = message_item(get_username(msg)+" has joined the chat !")
             self.model.appendRow(item)
         try:
             self.list_username = json.loads(get_content(msg))
@@ -160,7 +160,7 @@ class chat_view(QListView):
         if user == None: 
             print("user is none")
         else: 
-            item = message_item(get_username(msg)+" has leave the chat !")
+            item = message_item(get_username(msg)+" has leaved the chat !")
             self.model.appendRow(item)
 
         try:
@@ -259,7 +259,7 @@ class main_window(QMainWindow):
         self.send.setEnabled(False)
         self.send_f = QPushButton()
 
-        self.send_f.setIcon(QIcon("add.png"))
+        self.send_f.setIcon(QIcon("../images/add.png"))
 
         self.chat_ui = chat_view()
         self.users_list_ui = users_view()
