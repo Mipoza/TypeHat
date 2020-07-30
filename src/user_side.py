@@ -2,9 +2,9 @@ import snet, socket, time, threading, os, sys, json
 from cryptography.fernet import Fernet
 from Crypto.PublicKey import RSA
 from Crypto.Cipher import PKCS1_OAEP
-from PyQt5.QtWidgets import QMessageBox, QApplication, QFileDialog, QAbstractItemView, QLabel, QMainWindow, QGroupBox, QVBoxLayout, QHBoxLayout, QLineEdit, QPushButton, QListView, QItemDelegate, QStyleOptionViewItem, QStyle, QDialog
+from PyQt5.QtWidgets import QMessageBox, QApplication, QLabel,  QFileDialog, QAbstractItemView, QLabel, QMainWindow, QGroupBox, QVBoxLayout, QHBoxLayout, QLineEdit, QPushButton, QListView, QItemDelegate, QStyleOptionViewItem, QStyle, QDialog
 from PyQt5.QtCore import Qt, QRunnable, pyqtSlot, pyqtSignal, QThread, QThreadPool, QObject, QSize
-from PyQt5.QtGui import QStandardItemModel, QStandardItem, QIntValidator, QFont, QIcon, QPixmap
+from PyQt5.QtGui import QStandardItemModel, QStandardItem, QIntValidator, QFont, QIcon, QPixmap, QMovie
 
 user = None
 window = None
@@ -68,7 +68,7 @@ def wait_recv(): #separate socket file and image
 
 def connecting(host, port, username):
     global user
-    
+
     i = 0
     while True: #cancel a 3 times
         try:
@@ -106,6 +106,7 @@ def connecting(host, port, username):
     if is_correct == "1":
         user.secure_send(username + "*/randesc/*" + user.random_esc)
         main_window.thread_recv.start() #end it with close
+        
         return (True,"")
     else:
         return (False,"pass")
@@ -179,7 +180,20 @@ class chat_view(QListView):
         item.setIcon(QIcon(pix))
         self.model.appendRow(item)
 
-        
+class connect_thread(QThread):
+
+    def __init__(self, host, port, username):
+        QThread.__init__(self)
+        self.host = host
+        self.port = port
+        self.username =username
+
+    def __del__(self):
+        self.wait()
+
+    def run(self):
+        self.result = connecting(self.host,self.port,self.username)    
+    
 class users_view(QListView):
     def __init__(self):
         super(users_view, self).__init__()
@@ -211,12 +225,23 @@ class main_window(QMainWindow):
         self.line_port = QLineEdit("2101")
         self.line_user = QLineEdit("Mipoza")
         self.line_pass = QLineEdit()
-        
+        self.loading = QLabel()
+        self.loading.setVisible(False)
+
+                
         self.line_pass.setEchoMode(QLineEdit.Password)
         self.line_pass.setPlaceholderText("Optionnal")
 
         self.connect = QPushButton("Connect")
         self.connect.setEnabled(self.line_ip.text() != "")
+
+        w = self.connect.sizeHint().height()
+
+        mv = QMovie("../images/load.gif")
+        mv.start()
+        mv.setScaledSize(QSize(w,w))
+        self.loading.setMovie(mv)
+        self.loading.setFixedSize(w,w)
 
         self.line_ip .setPlaceholderText("IP address or dns")
         self.line_port.setPlaceholderText("Port number")
@@ -224,13 +249,18 @@ class main_window(QMainWindow):
         
         self.line_port.setValidator(QIntValidator(0, 65536))
 
+        con_lay = QHBoxLayout()
+
+        con_lay.addWidget(self.connect)
+        con_lay.addWidget(self.loading)
+
         lay = QVBoxLayout()
 
         lay.addWidget(self.line_ip )
         lay.addWidget(self.line_port)
         lay.addWidget(self.line_user)
         lay.addWidget(self.line_pass)
-        lay.addWidget(self.connect)
+        lay.addLayout(con_lay)
         
         self.box_connection = QGroupBox("Connection")
         
@@ -285,8 +315,15 @@ class main_window(QMainWindow):
     
     def connection(self): #make abort
         self.connect.setEnabled(False)
-        r = connecting(self.line_ip.text(),int(self.line_port.text()),self.line_user.text())
+        self.connect.setText("Connection...")
+        self.loading.setVisible(True)
+        self.myThread = connect_thread(self.line_ip.text(),int(self.line_port.text()),self.line_user.text())
+        self.myThread.finished.connect(lambda: self.connection_result(self.myThread.result))
+        self.myThread.start()
+        
+        #r = connecting()
 
+    def connection_result(self, r):
         if r[0]:
             self.box_connection.setVisible(False)
             self.box_connection.setEnabled(False)
@@ -295,11 +332,16 @@ class main_window(QMainWindow):
             self.resize(650,500)
         elif r[1] == "pass":
             self.connect.setEnabled(True)
+            self.loading.setVisible(False)
+            self.connect.setText("Connect")
             QMessageBox.critical(self, "Error with connection","Wrong password.",QMessageBox.Close)
         else:
             self.connect.setEnabled(True)
+            self.loading.setVisible(False)
+            self.connect.setText("Connect")
             QMessageBox.critical(self, "Error with connection","Server was not found.",QMessageBox.Close)
         
+
     def check(self):
         if len(self.line_ip.text()) > 0 and len(self.line_port.text()) > 0 and len(self.line_user.text()) > 0:
             self.connect.setEnabled(True)

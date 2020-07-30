@@ -107,7 +107,7 @@ if __name__ == "__main__":
     """)
 
     while True:
-        action = input("> ")
+        action = input("> ").lower()
 
         if action == "start":
             if not started:
