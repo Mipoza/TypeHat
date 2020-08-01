@@ -39,13 +39,16 @@ def get_content(data):
         content = ""
     return content
 
-def wait_recv(): #separate socket file and image
+def send_file(usr, data, to_send):
+    usr.secure_send_big(data, to_send)
+
+def wait_recv_msg(): #separate socket file and image
     global user
     while True:
         try:
-            data = user.secure_recv() 
+            data = user.secure_recv(user.sock_msg) 
             data = data.decode()
-
+            
             to_do = get_action(data)
 
             if to_do == "mesg":
@@ -54,7 +57,22 @@ def wait_recv(): #separate socket file and image
                 window.chat_ui.join_msg(data)
             elif to_do == "quit":
                 window.chat_ui.leave_msg(data)
-            elif to_do == "imag":
+        except:
+            user.sock_msg.close()
+            user.sock_file.close()
+            print("Error server was closed") #handled graphicly
+            os._exit(0) #make it proper
+
+def wait_recv_file(): #separate socket file and image
+    global user
+    while True:
+        try:
+            data = user.secure_recv(user.sock_file) 
+            data = data.decode()
+            
+            to_do = get_action(data)
+
+            if to_do == "imag":
                 im = user.secure_revc_big(int(get_content(data)))
                 window.chat_ui.image_msg(im, get_username(data))
             elif to_do == "file":
@@ -62,9 +80,10 @@ def wait_recv(): #separate socket file and image
                 r = QMessageBox.question(self, "Error with connection","Wrong password.",QMessageBox.Yes | QMessageBox.No)
                 print(r)
         except:
-            user.socket.close()
+            user.sock_msg.close()
+            user.sock_file.close()
             print("Error server was closed") #handled graphicly
-            os._exit(0)
+            os._exit(0) #make it proper
 
 def connecting(host, port, username):
     global user
@@ -72,8 +91,11 @@ def connecting(host, port, username):
     i = 0
     while True: #cancel a 3 times
         try:
-            connexion = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-            connexion.connect((host, port))
+            conn_msg = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            conn_msg.connect((host, port))
+
+            conn_file = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            conn_file.connect((host, port+1))
         except:
             if i == 3:
                 return (False,"attempt")
@@ -83,7 +105,7 @@ def connecting(host, port, username):
         i += 1
     
     key = Fernet.generate_key()
-    key_RSA = connexion.recv(2048)
+    key_RSA = conn_msg.recv(2048)
 
     try:
         recipient_key = RSA.imporimport_keytKey(key_RSA)
@@ -93,20 +115,20 @@ def connecting(host, port, username):
     cipher_rsa = PKCS1_OAEP.new(recipient_key)
     enc_session_key = cipher_rsa.encrypt(key)
 
-    connexion.send(enc_session_key)
+    conn_msg.send(enc_session_key)
 
-    user = snet.user(key, connexion, username)
+    user = snet.user(key, conn_msg, conn_file, username)
 
     password = window.line_pass.text()
 
-    user.secure_send(password)
-    is_correct = user.secure_recv()
+    user.secure_send(password, conn_msg)
+    is_correct = user.secure_recv(conn_msg)
     is_correct = is_correct.decode()
 
     if is_correct == "1":
-        user.secure_send(username + "*/randesc/*" + user.random_esc)
-        main_window.thread_recv.start() #end it with close
-        
+        user.secure_send(username + "*/randesc/*" + user.random_esc, conn_msg)
+        window.thread_recv_msg.start() #end it with close
+        window.thread_recv_file.start()
         return (True,"")
     else:
         return (False,"pass")
@@ -130,10 +152,6 @@ class chat_view(QListView):
         self.setVerticalScrollMode(QAbstractItemView.ScrollPerPixel)
         self.setHorizontalScrollMode(QAbstractItemView.ScrollPerPixel)
         self.model.rowsInserted.connect(lambda p:self.scrollToBottom())
-        
-        
-        
-
 
     def add_msg(self, msg):
         if user == None: 
@@ -192,7 +210,21 @@ class connect_thread(QThread):
         self.wait()
 
     def run(self):
-        self.result = connecting(self.host,self.port,self.username)    
+        self.result = connecting(self.host,self.port,self.username) 
+
+class run_fun(QThread):
+
+    def __init__(self, func, args=[]):
+        QThread.__init__(self)
+        self.function = func
+        self.args = args
+
+
+    def __del__(self):
+        self.wait()
+
+    def run(self):
+        self.function(*self.args)     
     
 class users_view(QListView):
     def __init__(self):
@@ -214,12 +246,17 @@ class users_view(QListView):
 
 
 class main_window(QMainWindow):
-    thread_recv = threading.Thread(target=wait_recv)
     def __init__(self, *args, **kwargs):
         super(main_window, self).__init__(*args, **kwargs)
         self.setWindowTitle("Secure Chat")
         #self.setContentsMargins(10,10,10,10)
-        
+
+        #self.thread_recv_msg = threading.Thread(target=wait_recv_msg)
+        #self.thread_recv_file = threading.Thread(target=wait_recv_file)
+
+        self.thread_recv_msg = run_fun(wait_recv_msg)
+        self.thread_recv_file = run_fun(wait_recv_file)
+
         #connect
         self.line_ip = QLineEdit("127.0.0.1")
         self.line_port = QLineEdit("2101")
@@ -289,6 +326,17 @@ class main_window(QMainWindow):
         self.send.setEnabled(False)
         self.send_f = QPushButton()
 
+        self.wait_send = QLabel()
+        self.wait_send.setVisible(False)
+
+        wf = self.send_f.sizeHint().height()
+
+        mv_f = QMovie("../images/load.gif")
+        mv_f.start()
+        mv_f.setScaledSize(QSize(wf,wf))
+        self.wait_send.setMovie(mv_f)
+        self.wait_send.setFixedSize(wf,wf)
+
         self.send_f.setIcon(QIcon("../images/add.png"))
 
         self.chat_ui = chat_view()
@@ -298,6 +346,7 @@ class main_window(QMainWindow):
         msg_lay.addWidget(self.line_msg)
         msg_lay.addWidget(self.send)
         msg_lay.addWidget(self.send_f)
+        msg_lay.addWidget(self.wait_send)
 
         hlay.addWidget(self.chat_ui)
         hlay.addLayout(msg_lay)
@@ -317,9 +366,9 @@ class main_window(QMainWindow):
         self.connect.setEnabled(False)
         self.connect.setText("Connection...")
         self.loading.setVisible(True)
-        self.myThread = connect_thread(self.line_ip.text(),int(self.line_port.text()),self.line_user.text())
-        self.myThread.finished.connect(lambda: self.connection_result(self.myThread.result))
-        self.myThread.start()
+        self.my_thread = connect_thread(self.line_ip.text(),int(self.line_port.text()),self.line_user.text())
+        self.my_thread.finished.connect(lambda: self.connection_result(self.my_thread.result))
+        self.my_thread.start()
         
         #r = connecting()
 
@@ -353,12 +402,16 @@ class main_window(QMainWindow):
         msg = self.line_msg.text()
         self.line_msg.clear()
         try:
-            user.secure_send("mesg"+user.username+user.random_esc+msg)
+            user.secure_send("mesg"+user.username+user.random_esc+msg, user.sock_msg)
             #self.chat_ui.add_msg(data.decode()) #maybe json for spe carac ?
         except:
             print("Error with socket sending") #print error in red in chat ?
 
-    def send_file(self):
+    def change_loading_file(self, bool):
+        self.send_f.setEnabled(not bool)
+        self.wait_send.setVisible(bool)
+
+    def send_file(self): #new thread
         file_name = QFileDialog.getOpenFileName(self, "Open Image", "/home/jana", "All Files (*.*)")
         #if line_msg.etxt() != "" alors send text and put max size
         if file_name[0] != "":
@@ -371,11 +424,17 @@ class main_window(QMainWindow):
             else:
                 path_and_extension = os.path.splitext(file_name[0])
                 extension = path_and_extension[1]
+
                 try:
-                    if extension in [".png",".jpg",".jpeg",".bmp","gif",".svg"]: #image (allowed format)
-                        user.secure_send_big(data,"imag"+user.username+user.random_esc)
+                    if extension in [".png",".jpg",".jpeg",".bmp",".gif",".svg"]: #image (allowed format)
+                        to_send = "imag"+user.username+user.random_esc
                     else: #file
-                        user.secure_send_big(data,"file"+user.username+user.random_esc)
+                        to_send = "file"+user.username+user.random_esc
+
+                    self.thread_file = run_fun(send_file,[user,data,to_send])
+                    self.thread_file.started.connect(lambda: self.change_loading_file(True))
+                    self.thread_file.finished.connect(lambda: self.change_loading_file(False))
+                    self.thread_file.start()
                 except:
                     #QMessageBox.critical(self, "File send Error","An error occured witn file sending.",QMessageBox.Close
                     print("error file sending")
@@ -398,10 +457,11 @@ class main_window(QMainWindow):
     def closeEvent(self,e):
         if user != None:
             try:
-                user.secure_send("quit"+user.username+user.random_esc+json.dumps(window.chat_ui.list_username))
+                user.secure_send("quit"+user.username+user.random_esc+json.dumps(window.chat_ui.list_username), user.sock_msg)
+                user.secure_send("quit"+user.username+user.random_esc, user.sock_file)
             except:
                 print("error sending leave")
-        os._exit(0)
+        os._exit(0) #make proper
 
 if __name__ == "__main__":
     app = QApplication(sys.argv)
@@ -410,3 +470,5 @@ if __name__ == "__main__":
     window.show()
 
     app.exec_()
+
+

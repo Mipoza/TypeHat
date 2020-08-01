@@ -3,6 +3,12 @@ from cryptography.fernet import Fernet
 
 serv = None
 
+#make send and recv socket and lock send
+#check aussi si le crash venez pas du faitq ue dans le client on envois l'image sans thread et dohc sa crash parce que long a upload
+
+lock = threading.Lock()
+
+
 def listenning(): 
     serv.listen(10)
     
@@ -10,14 +16,15 @@ def listenning():
         r = serv.wait_connect()
         if r == True:
             new_user_in(serv.user_list[-1])
-            threading.Thread(target=wait_recv,args=[serv.user_list[-1]]).start()
+            threading.Thread(target=wait_recv_msg,args=[serv.user_list[-1]]).start()
+            threading.Thread(target=wait_recv_file,args=[serv.user_list[-1]]).start()
         else:
             continue
 
 def new_user_in(user):
     for u in serv.user_list: #mb thread for each request ?
         try:
-            u.secure_send("join"+ user.username + u.random_esc + snet.ss_serv.ul_str())
+            u.secure_send("join"+ user.username + u.random_esc + serv.ul_str(), u.sock_msg)
         except socket.error as e:
             print(e)
 
@@ -49,24 +56,46 @@ def get_username(data,user):
         username = ""
     return username
 
-def wait_recv(user):
+def wait_recv_msg(user):
     while True:
         try:
-            data = user.secure_recv() #dont forget later for image
+            data = user.secure_recv(user.sock_msg) 
             data = data.decode()
             #what to do
             to_do = get_action(data)
             if to_do == "mesg":
                 send_all(to_do,data,user)
             elif to_do == "quit":
+                user.sock_msg.close()
                 leaved(user)
                 return
-            elif to_do == "imag" or to_do == "file":
-                send_file(get_content(data,user), user, to_do)
         except:
-            user.socket.close()
+            user.sock_msg.close()
+            user.sock_file.close()
             leaved(user)
-            print("Error with client, certainly closed")
+            print("Error with client, certainly closed (msg)")
+            break
+
+def wait_recv_file(user):
+    while True:
+        try:
+            data = user.secure_recv(user.sock_file) 
+            data = data.decode()
+
+            #what to do
+            to_do = get_action(data)
+            if to_do == "quit":
+                user.sock_file.close()
+                return
+            elif to_do == "imag":
+                send_file(get_content(data,user), user, to_do)
+            elif to_do == "file":
+                pass
+        except:
+            #user.sock_msg.close()
+            #user.sock_file.close()
+            #leaved(user)
+            print("Error with client, certainly closed (file)")
             break
 
 def leaved(user):
@@ -77,7 +106,7 @@ def leaved(user):
     
     for u in serv.user_list:
         try:
-            u.secure_send("quit" + user.username + u.random_esc + snet.ss_serv.ul_str())
+            u.secure_send("quit" + user.username + u.random_esc + serv.ul_str(),u.sock_msg)
         except:
             print("error")
 
@@ -93,7 +122,7 @@ def send_file(size, user, act):
 def send_all(act,msg,sender):
     for u in serv.user_list:
         try:
-            u.secure_send(act + get_username(msg,sender) + u.random_esc + get_content(msg,sender))
+            u.secure_send(act + get_username(msg,sender) + u.random_esc + get_content(msg,sender), u.sock_msg)
         except:
             print("error")
 
@@ -114,12 +143,20 @@ if __name__ == "__main__":
                 started = True
                 serv = snet.ss_serv(port,password) #try
                 threading.Thread(target=listenning).start()
-                print("Server as started!")
+                print("Server has started!")
             else:
                 print("Server already started.")
-        elif action == "exit":
+        elif action == "exit": #end
+            if started:
+                for u in serv.user_list:
+                    try:
+                        u.close()
+                    except:
+                        print("cannot close")
+                serv.sock_msg.close()
+                serv.sock_file.close()
             os._exit(0)
-        elif action[:4] == "port":
+        elif action[:4] == "port": #verif range, max-1
             try:
                 port = int(action[5:])
             except:
@@ -129,16 +166,3 @@ if __name__ == "__main__":
         else:
             print("Unknow command")
     
-
-
-
-"""
-key = Fernet.generate_key()
-
-s = snet.secure_socket(key)
-
-try:
-    print(s.t)
-except AttributeError as a:
-    print(a)
-"""
