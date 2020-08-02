@@ -3,11 +3,30 @@ from cryptography.fernet import Fernet
 from Crypto.PublicKey import RSA
 from Crypto.Cipher import PKCS1_OAEP
 from PyQt5.QtWidgets import QMessageBox, QApplication, QLabel,  QFileDialog, QAbstractItemView, QLabel, QMainWindow, QGroupBox, QVBoxLayout, QHBoxLayout, QLineEdit, QPushButton, QListView, QItemDelegate, QStyleOptionViewItem, QStyle, QDialog
-from PyQt5.QtCore import Qt, QRunnable, pyqtSlot, pyqtSignal, QThread, QThreadPool, QObject, QSize
+from PyQt5.QtCore import Qt, QRunnable, pyqtSlot, pyqtSignal, QThread, QThreadPool, QObject, QSize, QFileInfo
 from PyQt5.QtGui import QStandardItemModel, QStandardItem, QIntValidator, QFont, QIcon, QPixmap, QMovie
 
 user = None
 window = None
+
+def size_format(s):
+    size = int(s)
+    
+    prefix = "B"
+    length  = len(str(size))
+
+    if length >= 4 and length <= 6:
+        prefix = "KB"
+        size /= 10**3
+    elif length >= 7 and length <= 9:
+        prefix = "MB"
+        size /= 10**6
+    elif length > 9:
+        prefix = "GB"
+        size /= 10**9
+
+    return (str(round(size,1)),prefix)
+
 
 def get_action(data):
     global user
@@ -39,8 +58,8 @@ def get_content(data):
         content = ""
     return content
 
-def send_file(usr, data, to_send):
-    usr.secure_send_big(data, to_send)
+def send_file(usr, data, to_send, file_name):
+    usr.secure_send_big(data, to_send, file_name)
 
 def wait_recv_msg(): #separate socket file and image
     global user
@@ -75,14 +94,18 @@ def wait_recv_file(): #separate socket file and image
             if to_do == "imag":
                 im = user.secure_revc_big(int(get_content(data)))
                 window.chat_ui.image_msg(im, get_username(data))
-            elif to_do == "file":
-                print("here")
-                r = QMessageBox.question(self, "Error with connection","Wrong password.",QMessageBox.Yes | QMessageBox.No)
-                print(r)
+            elif to_do == "acpt":
+                s = get_content(data)
+                size = s[:s.find("/fn/")]
+                file_name = s[s.find("/fn/")+4:]
+                window.thread_recv_file.show_box(get_username(data)+" want to send you a file : "+file_name+" "+size_format(size)[0]+size_format(size)[1]+"\n"+"Do you want to accept it ?")
+                
+                if window.path_file[0] != "":
+                    print("do here stuff")
         except:
             user.sock_msg.close()
             user.sock_file.close()
-            print("Error server was closed") #handled graphicly
+            print("Error server was closed") #handle it graphicly
             os._exit(0) #make it proper
 
 def connecting(host, port, username):
@@ -199,7 +222,6 @@ class chat_view(QListView):
         self.model.appendRow(item)
 
 class connect_thread(QThread):
-
     def __init__(self, host, port, username):
         QThread.__init__(self)
         self.host = host
@@ -213,12 +235,15 @@ class connect_thread(QThread):
         self.result = connecting(self.host,self.port,self.username) 
 
 class run_fun(QThread):
+    msg_box = pyqtSignal(str)
 
     def __init__(self, func, args=[]):
         QThread.__init__(self)
         self.function = func
         self.args = args
 
+    def show_box(self, text):
+        self.msg_box.emit(text)
 
     def __del__(self):
         self.wait()
@@ -256,6 +281,8 @@ class main_window(QMainWindow):
 
         self.thread_recv_msg = run_fun(wait_recv_msg)
         self.thread_recv_file = run_fun(wait_recv_file)
+        self.thread_recv_file.msg_box.connect(lambda t: self.show_box_file(t), Qt.BlockingQueuedConnection)
+        self.path_file = ("","")
 
         #connect
         self.line_ip = QLineEdit("127.0.0.1")
@@ -407,9 +434,9 @@ class main_window(QMainWindow):
         except:
             print("Error with socket sending") #print error in red in chat ?
 
-    def change_loading_file(self, bool):
-        self.send_f.setEnabled(not bool)
-        self.wait_send.setVisible(bool)
+    def change_loading_file(self, enabled):
+        self.send_f.setEnabled(not enabled)
+        self.wait_send.setVisible(enabled)
 
     def send_file(self): #new thread
         file_name = QFileDialog.getOpenFileName(self, "Open Image", "/home/jana", "All Files (*.*)")
@@ -424,14 +451,16 @@ class main_window(QMainWindow):
             else:
                 path_and_extension = os.path.splitext(file_name[0])
                 extension = path_and_extension[1]
+                name = QFileInfo(file_name[0]).fileName() 
 
                 try:
                     if extension in [".png",".jpg",".jpeg",".bmp",".gif",".svg"]: #image (allowed format)
                         to_send = "imag"+user.username+user.random_esc
+                        name = ''
                     else: #file
                         to_send = "file"+user.username+user.random_esc
 
-                    self.thread_file = run_fun(send_file,[user,data,to_send])
+                    self.thread_file = run_fun(send_file,[user,data,to_send,name])
                     self.thread_file.started.connect(lambda: self.change_loading_file(True))
                     self.thread_file.finished.connect(lambda: self.change_loading_file(False))
                     self.thread_file.start()
@@ -440,7 +469,15 @@ class main_window(QMainWindow):
                     print("error file sending")
         else:
             pass
-    
+
+    def show_box_file(self, text):
+        r = QMessageBox.question(window, "File sending", text, QMessageBox.Yes | QMessageBox.No, QMessageBox.Yes)
+        
+        if r == QMessageBox.Yes:
+            self.path_file = QFileDialog.getSaveFileName(self, "Open Image", "/home/jana", "All Files (*.*)")
+        else:
+            self.path_file = ("","")
+
     def check_len(self):
         if len(self.line_msg.text()) > 0 and len(self.line_msg.text()) <= 2000:
             self.send.setEnabled(True)
@@ -448,7 +485,7 @@ class main_window(QMainWindow):
             self.send.setEnabled(False)
 
     def keyPressEvent(self, e):
-        if e.key()  == Qt.Key_Return:
+        if e.key() == Qt.Key_Return:
             if self.box_chat.isVisible():
                 self.send.click()
             else:
@@ -465,7 +502,7 @@ class main_window(QMainWindow):
 
 if __name__ == "__main__":
     app = QApplication(sys.argv)
-
+    
     window = main_window()
     window.show()
 

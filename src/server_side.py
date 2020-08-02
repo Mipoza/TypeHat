@@ -4,9 +4,6 @@ from cryptography.fernet import Fernet
 serv = None
 
 #make send and recv socket and lock send
-#check aussi si le crash venez pas du faitq ue dans le client on envois l'image sans thread et dohc sa crash parce que long a upload
-
-lock = threading.Lock()
 
 
 def listenning(): 
@@ -83,14 +80,16 @@ def wait_recv_file(user):
             data = data.decode()
 
             #what to do
+
             to_do = get_action(data)
             if to_do == "quit":
                 user.sock_file.close()
                 return
             elif to_do == "imag":
-                send_file(get_content(data,user), user, to_do)
+                send_image(get_content(data,user), user, to_do)
             elif to_do == "file":
-                pass
+                s = get_content(data,user)
+                send_file(s[:s.find("/fn/")], s[s.find("/fn/")+4:], user, to_do)
         except:
             #user.sock_msg.close()
             #user.sock_file.close()
@@ -106,19 +105,29 @@ def leaved(user):
     
     for u in serv.user_list:
         try:
-            u.secure_send("quit" + user.username + u.random_esc + serv.ul_str(),u.sock_msg)
+            u.secure_send("quit" + user.username + u.random_esc + serv.ul_str(), u.sock_msg)
         except:
             print("error")
 
-def send_file(size, user, act):
+def send_image(size, user, act):
     data = user.secure_revc_big(int(size))
-    
+
     for u in serv.user_list:
         try:
             u.secure_send_big(data, act + user.username + u.random_esc) #test
         except:
             print("error with file sending")
     
+def send_file(size, fn, user, act):
+    data = user.secure_revc_big(int(size))
+
+    for u in serv.user_list:
+        try:
+            if u != user:
+                u.secure_send("acpt" + user.username + u.random_esc + size + "/fn/" + fn, u.sock_file)
+        except:
+            print("error with file sending")
+
 def send_all(act,msg,sender):
     for u in serv.user_list:
         try:

@@ -25,7 +25,7 @@ class secure_socket:
     def secure_recv(self, sock):
         return self.encrypter.decrypt(sock.recv(self.buffer))
 
-    def secure_send_big(self, data, action):
+    def secure_send_big(self, data, action, file_name=''):
         to_send = data
         if(type(data) == str):
             to_send = to_send.encode()
@@ -33,7 +33,11 @@ class secure_socket:
         encrypted_data = self.encrypter.encrypt(to_send)
         size = len(encrypted_data)
 
-        self.secure_send(action+str(size), self.sock_file)
+        suffix = ''
+        if file_name != '':
+            suffix = '/fn/'+file_name
+
+        self.secure_send(action+str(size)+suffix, self.sock_file)
         time.sleep(0.2)
 
         return self.sock_file.send(encrypted_data)
