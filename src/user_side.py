@@ -94,14 +94,27 @@ def wait_recv_file(): #separate socket file and image
             if to_do == "imag":
                 im = user.secure_revc_big(int(get_content(data)))
                 window.chat_ui.image_msg(im, get_username(data))
-            elif to_do == "acpt":
-                s = get_content(data)
-                size = s[:s.find("/fn/")]
-                file_name = s[s.find("/fn/")+4:]
-                window.thread_recv_file.show_box(get_username(data)+" want to send you a file : "+file_name+" "+size_format(size)[0]+size_format(size)[1]+"\n"+"Do you want to accept it ?")
+            elif to_do == "file": #empecher denvoyer en disable l'ui, voir loading bar
+                file_size = int(get_content(data))
+                file_data = user.secure_revc_big(file_size)
                 
                 if window.path_file[0] != "":
-                    print("do here stuff")
+                    f_stream = open(window.path_file[0], "wb")
+                    f_stream.write(file_data)
+                    f_stream.close()
+            elif to_do == "acpt":
+                s = get_content(data)
+
+                size = s[:s.find("/fn/")]
+                file_name = s[s.find("/fn/")+4:s.find("/id/")]
+                file_id = s[s.find("/id/")+4:]
+
+                window.thread_recv_file.show_box(get_username(data)+" want to send you a file : "+file_name+" "+size_format(size)[0]+size_format(size)[1]+"\n"+"Do you want to accept it ?", file_name)
+                
+                if window.path_file[0] != "":
+                    user.secure_send("acpt" + user.username + user.random_esc + file_id, user.sock_file)
+                else:
+                    user.secure_send("decl" + user.username + user.random_esc + file_id, user.sock_file)
         except:
             user.sock_msg.close()
             user.sock_file.close()
@@ -235,15 +248,15 @@ class connect_thread(QThread):
         self.result = connecting(self.host,self.port,self.username) 
 
 class run_fun(QThread):
-    msg_box = pyqtSignal(str)
+    msg_box = pyqtSignal(str, str)
 
     def __init__(self, func, args=[]):
         QThread.__init__(self)
         self.function = func
         self.args = args
 
-    def show_box(self, text):
-        self.msg_box.emit(text)
+    def show_box(self, text, fn):
+        self.msg_box.emit(text, fn)
 
     def __del__(self):
         self.wait()
@@ -281,7 +294,7 @@ class main_window(QMainWindow):
 
         self.thread_recv_msg = run_fun(wait_recv_msg)
         self.thread_recv_file = run_fun(wait_recv_file)
-        self.thread_recv_file.msg_box.connect(lambda t: self.show_box_file(t), Qt.BlockingQueuedConnection)
+        self.thread_recv_file.msg_box.connect(lambda t,f: self.show_box_file(t,f), Qt.BlockingQueuedConnection)
         self.path_file = ("","")
 
         #connect
@@ -470,11 +483,11 @@ class main_window(QMainWindow):
         else:
             pass
 
-    def show_box_file(self, text):
+    def show_box_file(self, text, f_name):
         r = QMessageBox.question(window, "File sending", text, QMessageBox.Yes | QMessageBox.No, QMessageBox.Yes)
         
         if r == QMessageBox.Yes:
-            self.path_file = QFileDialog.getSaveFileName(self, "Open Image", "/home/jana", "All Files (*.*)")
+            self.path_file = QFileDialog.getSaveFileName(self, "Open Image", "/home/"+f_name, "All Files (*.*)")
         else:
             self.path_file = ("","")
 

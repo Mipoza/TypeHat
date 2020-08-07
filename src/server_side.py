@@ -90,12 +90,44 @@ def wait_recv_file(user):
             elif to_do == "file":
                 s = get_content(data,user)
                 send_file(s[:s.find("/fn/")], s[s.find("/fn/")+4:], user, to_do)
+            elif to_do == "decl":
+                file_id = int(get_content(data,user))
+                f_tuple = get_tuple(file_id)
+
+                if f_tuple != None:
+                    try:
+                        serv.fm.file_queue[serv.fm.file_queue.index(f_tuple)][2][user] = True
+                        dict_user = serv.fm.file_queue[serv.fm.file_queue.index(f_tuple)][2]
+
+                        if all(x==True for x in dict_user.values()):
+                            serv.fm.end_file(int(file_id))
+                    except:
+                        print("error while deleting in file_queue")
+            elif to_do == "acpt":
+                file_id = int(get_content(data,user))
+                f_tuple = get_tuple(file_id)
+
+                if f_tuple != None:
+                    user.secure_send_big(f_tuple[1], "file"+user.username+user.random_esc)
+                    #False in queue
+
         except:
             #user.sock_msg.close()
             #user.sock_file.close()
             #leaved(user)
             print("Error with client, certainly closed (file)")
             break
+
+def get_tuple(file_id):
+    f_tuple = None
+
+    for t in serv.fm.file_queue:
+        if t[0] == file_id:
+            f_tuple = t
+            break
+    
+    return f_tuple
+
 
 def leaved(user):
     try:
@@ -121,10 +153,17 @@ def send_image(size, user, act):
 def send_file(size, fn, user, act):
     data = user.secure_revc_big(int(size))
 
+    u_l = []
+    for u in serv.user_list:
+        if u != user:
+            u_l.append(u)
+        
+    file_id = serv.fm.add_file(data, u_l)
+    
     for u in serv.user_list:
         try:
             if u != user:
-                u.secure_send("acpt" + user.username + u.random_esc + size + "/fn/" + fn, u.sock_file)
+                u.secure_send("acpt" + user.username + u.random_esc + size + "/fn/" + fn + "/id/" + str(file_id), u.sock_file)
         except:
             print("error with file sending")
 
@@ -161,7 +200,7 @@ if __name__ == "__main__":
                     try:
                         u.close()
                     except:
-                        print("cannot close")
+                        print("cannot close client socket")
                 serv.sock_msg.close()
                 serv.sock_file.close()
             os._exit(0)

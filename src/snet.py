@@ -56,6 +56,28 @@ class user(secure_socket):
         self.username = username
         self.random_esc = ''.join(random.choice(string.ascii_letters+string.digits) for i in range(32))
 
+class file_manager():
+    def __init__(self):
+        self.file_queue = []
+        self.id = 0
+    
+    def add_file(self, file, user_lsit):
+        dict_user = { user_lsit[i] : False for i in range(0,len(user_lsit)) }
+        self.file_queue.append((self.id, file, dict_user))
+        self.id += 1
+        return self.id-1
+    
+    def end_file(self, file_id):
+        f_tuple = None
+
+        for t in self.file_queue:
+            if t[0] == file_id:
+                f_tuple = t
+                break
+        
+        del self.file_queue[self.file_queue.index(f_tuple)]
+
+
 class ss_serv(): 
     def __init__(self, port, password="", buffer=4096):
         self.port = port
@@ -72,6 +94,7 @@ class ss_serv():
         self.password = password
         self.key_RSA = RSA.generate(2048)
         self.user_list = []
+        self.fm = file_manager()
     
     def listen(self, max):
         self.sock_msg.listen(max)
@@ -125,7 +148,7 @@ class ss_serv():
                 self.user_list.append(new_user)
                 return True
             else:
-                new_user.secure_send("0")
+                new_user.secure_send("0", conn_msg)
                 return False
         except socket.error as err:
             print("error occured for accepting socket : {}".format(err))
