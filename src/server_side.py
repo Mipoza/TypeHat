@@ -18,6 +18,7 @@ def listenning():
         else:
             continue
 
+
 def new_user_in(user):
     for u in serv.user_list: #mb thread for each request ?
         try:
@@ -78,8 +79,6 @@ def wait_recv_file(user):
         try:
             data = user.secure_recv(user.sock_file) 
             data = data.decode()
-
-            #what to do
 
             to_do = get_action(data)
             if to_do == "quit":

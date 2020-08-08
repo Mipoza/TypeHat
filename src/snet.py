@@ -104,17 +104,19 @@ class ss_serv():
 
         self.sock_msg = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self.sock_file = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        self.sock_call = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         #self.sock_call = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
 
         self.sock_msg.bind(("",self.port))
         self.sock_file.bind(("",self.port+1))
-        #self.sock_call.bind(("",self.port))
+        self.sock_call.bind(("",self.port))
 
         self.password = password
         self.key_RSA = RSA.generate(2048)
         self.user_list = []
         self.fm = file_manager()
-    
+
+
     def listen(self, max):
         self.sock_msg.listen(max)
         self.sock_file.listen(max)

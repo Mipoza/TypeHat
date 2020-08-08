@@ -3,7 +3,7 @@ from cryptography.fernet import Fernet
 from Crypto.PublicKey import RSA
 from Crypto.Cipher import PKCS1_OAEP
 from PyQt5.QtWidgets import QMessageBox, QApplication, QLabel,  QFileDialog, QAbstractItemView, QLabel, QMainWindow, QGroupBox, QVBoxLayout, QHBoxLayout, QLineEdit, QPushButton, QListView, QItemDelegate, QStyleOptionViewItem, QStyle, QDialog
-from PyQt5.QtCore import Qt, QRunnable, pyqtSlot, pyqtSignal, QThread, QThreadPool, QObject, QSize, QFileInfo
+from PyQt5.QtCore import Qt, QRunnable, pyqtSlot, pyqtSignal, QThread, QThreadPool, QObject, QSize, QFileInfo, QStandardPaths
 from PyQt5.QtGui import QStandardItemModel, QStandardItem, QIntValidator, QFont, QIcon, QPixmap, QMovie
 
 user = None
@@ -124,7 +124,7 @@ def wait_recv_file(): #separate socket file and image
         except:
             user.sock_msg.close()
             user.sock_file.close()
-            print("Error server was closedeee") #handle it graphicly
+            print("Error server was closed") #handle it graphicly
             os._exit(0) #make it proper
 
 def connecting(host, port, username):
@@ -282,6 +282,8 @@ class users_view(QListView):
         self.setModel(self.model)
         self.setStyleSheet("QListView::item {color: #6a6a6a;}")
         self.setFocusPolicy(Qt.NoFocus)
+        self.setIconSize(QSize(18,18))
+        self.dict_user_item = {}
 
     def refresh(self):
         self.model.clear()
@@ -289,7 +291,9 @@ class users_view(QListView):
             item = message_item(u)
             font = item.font()
             font.setPointSize(11)
-            item.setFont(font)
+            #item.setFont(font)
+            #item.setIcon(QIcon("../images/incall.png"))
+            #self.dict_user_item[]
             self.model.appendRow(item)
 
 
@@ -298,10 +302,9 @@ class main_window(QMainWindow):
         super(main_window, self).__init__(*args, **kwargs)
         self.setWindowTitle("Secure Chat")
         #self.setContentsMargins(10,10,10,10)
-
+        
         #self.thread_recv_msg = threading.Thread(target=wait_recv_msg)
         #self.thread_recv_file = threading.Thread(target=wait_recv_file)
-
         self.thread_recv_msg = run_fun(wait_recv_msg)
         self.thread_recv_file = run_fun(wait_recv_file)
         self.thread_recv_file.msg_box.connect(lambda t,f: self.show_box_file(t,f), Qt.BlockingQueuedConnection)
@@ -364,6 +367,9 @@ class main_window(QMainWindow):
 
         #chat
         
+        self.in_call = False
+        self.muted = False
+
         self.box_chat = QGroupBox()
         self.box_chat.setVisible(False)
 
@@ -376,6 +382,13 @@ class main_window(QMainWindow):
         self.send = QPushButton("Send")
         self.send.setEnabled(False)
         self.send_f = QPushButton()
+        self.call_but = QPushButton()
+        self.mute_but = QPushButton()
+
+        self.mute_but.setVisible(False)
+
+        self.mute_but.setIcon(QIcon("../images/unmute.png"))
+        self.call_but.setIcon(QIcon("../images/call.png"))
 
         self.wait_send = QLabel()
         self.wait_send.setVisible(False)
@@ -394,6 +407,8 @@ class main_window(QMainWindow):
         self.users_list_ui = users_view()
         self.users_list_ui.setMaximumWidth(175)
 
+        msg_lay.addWidget(self.mute_but)    
+        msg_lay.addWidget(self.call_but)
         msg_lay.addWidget(self.line_msg)
         msg_lay.addWidget(self.send)
         msg_lay.addWidget(self.send_f)
@@ -412,6 +427,8 @@ class main_window(QMainWindow):
         self.send_f.clicked.connect(lambda:self.send_file())
         self.send.clicked.connect(lambda:self.send_msg())
         self.line_msg.textChanged.connect(lambda:self.check_len())
+        self.call_but.clicked.connect(lambda: self.call_manager())
+        self.mute_but.clicked.connect(lambda: self.mute_manager())
     
     def connection(self): #make abort
         self.connect.setEnabled(False)
@@ -440,13 +457,30 @@ class main_window(QMainWindow):
             self.loading.setVisible(False)
             self.connect.setText("Connect")
             QMessageBox.critical(self, "Error with connection","Server was not found.",QMessageBox.Close)
-        
 
     def check(self):
         if len(self.line_ip.text()) > 0 and len(self.line_port.text()) > 0 and len(self.line_user.text()) > 0:
             self.connect.setEnabled(True)
         else:
             self.connect.setEnabled(False)
+    
+    def call_manager(self):
+        if not self.in_call:
+            self.call_but.setIcon(QIcon("../images/ringoff.png"))
+            self.mute_but.setVisible(True)
+            self.in_call = True
+        else:
+            self.call_but.setIcon(QIcon("../images/call.png"))
+            self.mute_but.setVisible(False)
+            self.in_call = False
+
+    def mute_manager(self):
+        if not self.muted:
+            self.mute_but.setIcon(QIcon("../images/mute.png"))
+            self.muted = True
+        else:
+            self.mute_but.setIcon(QIcon("../images/unmute.png"))
+            self.muted = False
 
     def send_msg(self): #real send
         #self.chat_ui.add_msg(self.line_msg.text())
@@ -463,7 +497,7 @@ class main_window(QMainWindow):
         self.wait_send.setVisible(enabled)
 
     def send_file(self): #new thread
-        file_name = QFileDialog.getOpenFileName(self, "Open Image", "/home/jana", "All Files (*.*)")
+        file_name = QFileDialog.getOpenFileName(self, "Open Image", QStandardPaths.standardLocations(QStandardPaths.HomeLocation)[0], "All Files (*.*)")
         #if line_msg.etxt() != "" alors send text and put max size
         if file_name[0] != "":
             try:
@@ -498,7 +532,7 @@ class main_window(QMainWindow):
         r = QMessageBox.question(window, "File sending", text, QMessageBox.Yes | QMessageBox.No, QMessageBox.Yes)
         
         if r == QMessageBox.Yes:
-            self.path_file = QFileDialog.getSaveFileName(self, "Open Image", "/home/"+f_name, "All Files (*.*)")
+            self.path_file = QFileDialog.getSaveFileName(self, "Open Image", QStandardPaths.standardLocations(QStandardPaths.HomeLocation)[0]+"/"+f_name, "All Files (*.*)")
         else:
             self.path_file = ("","")
 
