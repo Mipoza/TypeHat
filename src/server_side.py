@@ -15,9 +15,13 @@ def listenning():
             new_user_in(serv.user_list[-1])
             threading.Thread(target=wait_recv_msg,args=[serv.user_list[-1]]).start()
             threading.Thread(target=wait_recv_file,args=[serv.user_list[-1]]).start()
+            threading.Thread(target=wait_recv_call,args=[serv.user_list[-1]]).start() #user for decrypt ?
         else:
             continue
 
+def wait_recv_call(user):
+    while True:
+        data = serv.sock_call.recv(serv.buffer)
 
 def new_user_in(user):
     for u in serv.user_list: #mb thread for each request ?

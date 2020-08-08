@@ -138,6 +138,9 @@ def connecting(host, port, username):
 
             conn_file = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
             conn_file.connect((host, port+1))
+
+            call_sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+            call_sock.sendto(b"",(host, port))
         except:
             if i == 3:
                 return (False,"attempt")
@@ -159,7 +162,7 @@ def connecting(host, port, username):
 
     conn_msg.send(enc_session_key)
 
-    user = snet.user(key, conn_msg, conn_file, username)
+    user = snet.user(key, conn_msg, conn_file, call_sock, username)
 
     password = window.line_pass.text()
 
