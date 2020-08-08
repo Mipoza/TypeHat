@@ -61,6 +61,14 @@ def get_content(data):
 def send_file(usr, data, to_send, file_name):
     usr.secure_send_big(data, to_send, file_name)
 
+def recv_file(user, file_size):
+    file_data = user.secure_revc_big(file_size)
+
+    if window.path_file[0] != "":
+        f_stream = open(window.path_file[0], "wb")
+        f_stream.write(file_data)
+        f_stream.close()
+
 def wait_recv_msg(): #separate socket file and image
     global user
     while True:
@@ -94,14 +102,12 @@ def wait_recv_file(): #separate socket file and image
             if to_do == "imag":
                 im = user.secure_revc_big(int(get_content(data)))
                 window.chat_ui.image_msg(im, get_username(data))
-            elif to_do == "file": #empecher denvoyer en disable l'ui, voir loading bar
+            elif to_do == "file":
                 file_size = int(get_content(data))
-                file_data = user.secure_revc_big(file_size)
-                
-                if window.path_file[0] != "":
-                    f_stream = open(window.path_file[0], "wb")
-                    f_stream.write(file_data)
-                    f_stream.close()
+
+                window.thread_recv_file.load_state(True)
+                recv_file(user, file_size)
+                window.thread_recv_file.load_state(False)
             elif to_do == "acpt":
                 s = get_content(data)
 
@@ -118,7 +124,7 @@ def wait_recv_file(): #separate socket file and image
         except:
             user.sock_msg.close()
             user.sock_file.close()
-            print("Error server was closed") #handle it graphicly
+            print("Error server was closedeee") #handle it graphicly
             os._exit(0) #make it proper
 
 def connecting(host, port, username):
@@ -249,6 +255,7 @@ class connect_thread(QThread):
 
 class run_fun(QThread):
     msg_box = pyqtSignal(str, str)
+    l_state = pyqtSignal(bool)
 
     def __init__(self, func, args=[]):
         QThread.__init__(self)
@@ -257,6 +264,9 @@ class run_fun(QThread):
 
     def show_box(self, text, fn):
         self.msg_box.emit(text, fn)
+
+    def load_state(self, b):
+        self.l_state.emit(b)
 
     def __del__(self):
         self.wait()
@@ -295,6 +305,7 @@ class main_window(QMainWindow):
         self.thread_recv_msg = run_fun(wait_recv_msg)
         self.thread_recv_file = run_fun(wait_recv_file)
         self.thread_recv_file.msg_box.connect(lambda t,f: self.show_box_file(t,f), Qt.BlockingQueuedConnection)
+        self.thread_recv_file.l_state.connect(lambda b: self.change_loading_file(b), Qt.BlockingQueuedConnection)
         self.path_file = ("","")
 
         #connect

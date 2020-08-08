@@ -77,6 +77,25 @@ class file_manager():
         
         del self.file_queue[self.file_queue.index(f_tuple)]
 
+    def get_tuple(self, file_id):
+        f_tuple = None
+
+        for t in self.file_queue:
+            if t[0] == file_id:
+                f_tuple = t
+                break
+        
+        return f_tuple
+    
+    def del_tuple(self, f_tuple, file_id, user):
+        if f_tuple != None:
+            self.file_queue[self.file_queue.index(f_tuple)][2][user] = True
+            dict_user = self.file_queue[self.file_queue.index(f_tuple)][2]
+
+            if all(x==True for x in dict_user.values()):
+                self.end_file(int(file_id))
+
+
 
 class ss_serv(): 
     def __init__(self, port, password="", buffer=4096):
