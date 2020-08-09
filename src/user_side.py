@@ -7,6 +7,7 @@ from PyQt5.QtCore import Qt, QRunnable, pyqtSlot, pyqtSignal, QThread, QThreadPo
 from PyQt5.QtGui import QStandardItemModel, QStandardItem, QIntValidator, QFont, QIcon, QPixmap, QMovie
 
 user = None
+scall_user = None
 window = None
 
 def size_format(s):
@@ -128,7 +129,7 @@ def wait_recv_file(): #separate socket file and image
             os._exit(0) #make it proper
 
 def connecting(host, port, username):
-    global user
+    global user, scall_user
 
     i = 0
     while True: #cancel a 3 times
@@ -139,8 +140,8 @@ def connecting(host, port, username):
             conn_file = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
             conn_file.connect((host, port+1))
 
-            call_sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-            call_sock.sendto(b"",(host, port))
+            #call_sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+            #call_sock.sendto(b"",(host, port))
         except:
             if i == 3:
                 return (False,"attempt")
@@ -149,6 +150,8 @@ def connecting(host, port, username):
             break
         i += 1
     
+    
+
     key = Fernet.generate_key()
     key_RSA = conn_msg.recv(2048)
 
@@ -162,7 +165,8 @@ def connecting(host, port, username):
 
     conn_msg.send(enc_session_key)
 
-    user = snet.user(key, conn_msg, conn_file, call_sock, username)
+    user = snet.user(key, conn_msg, conn_file, username)
+    #user.sock_call = call_sock
 
     password = window.line_pass.text()
 
@@ -170,11 +174,21 @@ def connecting(host, port, username):
     is_correct = user.secure_recv(conn_msg)
     is_correct = is_correct.decode()
 
+
     if is_correct == "1":
         user.secure_send(username + "*/randesc/*" + user.random_esc, conn_msg)
-        window.thread_recv_msg.start() #end it with close
-        window.thread_recv_file.start()
-        return (True,"")
+
+        sameu_and_key = user.secure_recv(conn_msg)
+        sameu_and_key = sameu_and_key.decode()
+        samer_username = sameu_and_key[0]
+
+        if samer_username == "0":
+            scall_user = snet.scall(sameu_and_key[1:])
+            window.thread_recv_msg.start() #end it with close
+            window.thread_recv_file.start()
+            return (True,"")
+        else:
+            return (False,"same")
     else:
         return (False,"pass")
        
@@ -455,6 +469,11 @@ class main_window(QMainWindow):
             self.loading.setVisible(False)
             self.connect.setText("Connect")
             QMessageBox.critical(self, "Error with connection","Wrong password.",QMessageBox.Close)
+        elif r[1] == "same":
+            self.connect.setEnabled(True)
+            self.loading.setVisible(False)
+            self.connect.setText("Connect")
+            QMessageBox.critical(self, "Error with connection","\""+self.line_user.text()+"\""+" is already used, please change your username.",QMessageBox.Close)
         else:
             self.connect.setEnabled(True)
             self.loading.setVisible(False)
@@ -476,6 +495,8 @@ class main_window(QMainWindow):
             self.call_but.setIcon(QIcon("../images/call.png"))
             self.mute_but.setVisible(False)
             self.in_call = False
+            self.mute_but.setIcon(QIcon("../images/unmute.png"))
+            self.muted = False
 
     def mute_manager(self):
         if not self.muted:

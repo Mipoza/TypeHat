@@ -6,25 +6,14 @@ from Crypto.Cipher import PKCS1_OAEP
 
 
 class secure_socket:
-    def __init__(self, key, sock_msg, sock_file, sock_call, buffer=4096):
+    def __init__(self, key, sock_msg, sock_file, buffer=4096):
         self.key = key
         self.encrypter = Fernet(key)
         self.buffer = buffer
 
         self.sock_msg = sock_msg
         self.sock_file = sock_file
-        self.sock_call = sock_call
-    
-    def secure_sendto(self, data, addr):
-        to_send = data
-        if(type(data) == str):
-            to_send = to_send.encode()
-        return self.sock_call.sendto(self.encrypter.encrypt(to_send), addr)
-    
-    def secure_recvfrom(self):
-        data, addr = self.sock_call.recv(buffer)
-        return self.encrypter.decrypt(data)
-
+        
     def secure_send(self, data, sock):
         to_send = data
         if(type(data) == str):
@@ -61,10 +50,27 @@ class secure_socket:
 
 
 class user(secure_socket):
-    def __init__(self, key, sock_msg, sock_file, sock_call, username, buffer=4096):
-        secure_socket.__init__(self, key, sock_msg, sock_file, sock_call, buffer)
+    def __init__(self, key, sock_msg, sock_file, username, buffer=4096):
+        secure_socket.__init__(self, key, sock_msg, sock_file, buffer)
         self.username = username
         self.random_esc = ''.join(random.choice(string.ascii_letters+string.digits) for i in range(32))
+
+class scall():
+    def __init__(self, key, buffer=4096):
+        self.key = key
+        self.encrypter = Fernet(self.key)
+        self.buffer = buffer
+        self.sock_call = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+
+    def secure_sendto(self, data, addr):
+        to_send = data
+        if(type(data) == str):
+            to_send = to_send.encode()
+        return self.sock_call.sendto(self.encrypter.encrypt(to_send), addr)
+    
+    def secure_recvfrom(self):
+        data, addr = self.sock_call.recv(buffer)
+        return self.encrypter.decrypt(data)
 
 class file_manager():
     def __init__(self):
@@ -104,7 +110,7 @@ class file_manager():
 
             if all(x==True for x in dict_user.values()):
                 self.end_file(int(file_id))
-#@Jeux-vidéo 🎮 Kdo, 434HC-Y2X93-TCKQX-RP2JH-JKHRZ, un code Xbox game pass de 3 mois
+
 class ss_serv(): 
     def __init__(self, port, password="", buffer=4096):
         self.port = port
@@ -121,10 +127,10 @@ class ss_serv():
         self.password = password
         self.key_RSA = RSA.generate(2048)
         self.user_list = []
-        self.dict_addr = {}
-        self.in_call = {}
+        #self.dict_addr = {}
+        #self.in_call = {}
         self.fm = file_manager()
-
+        self.scall_serv = scall(Fernet.generate_key())
     def listen(self, max):
         self.sock_msg.listen(max)
         self.sock_file.listen(max)
@@ -140,8 +146,9 @@ class ss_serv():
         try:
             conn_msg, infos = self.sock_msg.accept()
             conn_file, infos_file = self.sock_file.accept()
-            conn_call, addr = self.sock_call.recvfrom(self.buffer)
+            #conn_call, addr = self.sock_call.recvfrom(self.buffer)
             #conn not socket
+
             try:
                 rsa_pub = self.key_RSA.publickey().export_key()
             except:
@@ -153,7 +160,7 @@ class ss_serv():
             cipher_rsa = PKCS1_OAEP.new(self.key_RSA)
             self.key = cipher_rsa.decrypt(enc_key)
 
-            new_user = user(self.key, conn_msg, conn_file, conn_call, "", self.buffer)
+            new_user = user(self.key, conn_msg, conn_file, "", self.buffer) #not a socket conn_call
 
             #here at user recv
 
@@ -171,14 +178,25 @@ class ss_serv():
                 except:
                     print("Error no escp, may be security brech, closing")
                     os._exit(0)
+                
+                same_usrn = False
+                for u in self.user_list:
+                    if u.username == username:
+                        same_usrn = True
+                        break
 
-                new_user.username = username
-                new_user.random_esc = rand
+                if same_usrn:
+                    new_user.secure_send("1",conn_msg)
+                else:
+                    new_user.secure_send(b"0"+self.scall_serv.key,conn_msg)
 
-                self.user_list.append(new_user)
-                self.dict_addr[conn_msg] = addr
+                    new_user.username = username
+                    new_user.random_esc = rand
 
-                return True
+                    self.user_list.append(new_user)
+                    #self.dict_addr[conn_msg] = addr
+
+                    return True
             else:
                 new_user.secure_send("0", conn_msg)
                 return False

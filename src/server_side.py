@@ -11,17 +11,14 @@ def listenning():
     
     while True:
         r = serv.wait_connect()
+
         if r == True:
             new_user_in(serv.user_list[-1])
             threading.Thread(target=wait_recv_msg,args=[serv.user_list[-1]]).start()
             threading.Thread(target=wait_recv_file,args=[serv.user_list[-1]]).start()
-            threading.Thread(target=wait_recv_call,args=[serv.user_list[-1]]).start() #user for decrypt ?
+            #threading.Thread(target=wait_recv_call,args=[serv.user_list[-1]]).start() #user for decrypt ?
         else:
             continue
-
-def wait_recv_call(user):
-    while True:
-        data = serv.sock_call.recv(serv.buffer)
 
 def new_user_in(user):
     for u in serv.user_list: #mb thread for each request ?
@@ -120,6 +117,16 @@ def wait_recv_file(user):
             print("Error with client, certainly closed (file)")
             break
 
+def wait_recv_call(user):
+    while True:
+        try:
+            pass
+            #data = user.encrypter.decrypt(serv.sock_call.recv(serv.buffer))
+            #data, addr = serv.sock_call.recvfrom(serv.buffer) #pb here, il capte lautre
+            #print(addr)
+        except:
+            print("Error with udp call sock recv.")
+            break
 
 def leaved(user):
     try:
