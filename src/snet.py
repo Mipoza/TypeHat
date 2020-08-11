@@ -62,6 +62,7 @@ class scall():
         self.buffer = buffer
         self.sock_call = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
 
+
     def secure_sendto(self, data, addr):
         to_send = data
         if(type(data) == str):
@@ -69,8 +70,8 @@ class scall():
         return self.sock_call.sendto(self.encrypter.encrypt(to_send), addr)
     
     def secure_recvfrom(self):
-        data, addr = self.sock_call.recv(buffer)
-        return self.encrypter.decrypt(data)
+        data, addr = self.sock_call.recvfrom(self.buffer)
+        return (self.encrypter.decrypt(data), addr)
 
 class file_manager():
     def __init__(self):
@@ -128,7 +129,7 @@ class ss_serv():
         self.key_RSA = RSA.generate(2048)
         self.user_list = []
         #self.dict_addr = {}
-        #self.in_call = {}
+        self.in_call = []
         self.fm = file_manager()
         self.scall_serv = scall(Fernet.generate_key())
     def listen(self, max):
@@ -176,7 +177,7 @@ class ss_serv():
                     username = usernameandrand[:(usernameandrand.find("*/randesc/*"))]
                     rand = usernameandrand[(usernameandrand.find("*/randesc/*")+11):]
                 except:
-                    print("Error no escp, may be security brech, closing")
+                    print("Error no escp, may be security breach, closing")
                     os._exit(0)
                 
                 same_usrn = False

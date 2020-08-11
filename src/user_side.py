@@ -1,10 +1,12 @@
-import snet, socket, time, threading, os, sys, json
+import snet, socket, time, threading, os, sys, json, pyaudio
 from cryptography.fernet import Fernet
 from Crypto.PublicKey import RSA
 from Crypto.Cipher import PKCS1_OAEP
 from PyQt5.QtWidgets import QMessageBox, QApplication, QLabel,  QFileDialog, QAbstractItemView, QLabel, QMainWindow, QGroupBox, QVBoxLayout, QHBoxLayout, QLineEdit, QPushButton, QListView, QItemDelegate, QStyleOptionViewItem, QStyle, QDialog
 from PyQt5.QtCore import Qt, QRunnable, pyqtSlot, pyqtSignal, QThread, QThreadPool, QObject, QSize, QFileInfo, QStandardPaths
 from PyQt5.QtGui import QStandardItemModel, QStandardItem, QIntValidator, QFont, QIcon, QPixmap, QMovie
+from ctypes import *
+
 
 user = None
 scall_user = None
@@ -128,6 +130,28 @@ def wait_recv_file(): #separate socket file and image
             print("Error server was closed") #handle it graphicly
             os._exit(0) #make it proper
 
+p = pyaudio.PyAudio()
+playing_stream = p.open(format=pyaudio.paInt16, channels=1, rate=44000, output=True, frames_per_buffer=1024) 
+recording_stream = p.open(format=pyaudio.paInt16, channels=1, rate=44000, input=True, frames_per_buffer=1024)
+
+def recv_voice():
+    global user, scall_user, playing_stream
+    while window.in_call:
+        try:
+            data = scall_user.secure_recvfrom()[0]
+            playing_stream.write(data)
+        except Exception as e:
+            print(e)
+
+def send_voice(host, port):
+    global user, scall_user, playing_stream
+    while window.in_call:
+        try:
+            data = recording_stream.read(1024)
+            scall_user.secure_sendto(data, (host,port+2))
+        except:
+            print("UDP call send drop")
+
 def connecting(host, port, username):
     global user, scall_user
 
@@ -184,6 +208,8 @@ def connecting(host, port, username):
 
         if samer_username == "0":
             scall_user = snet.scall(sameu_and_key[1:])
+            scall_user.sock_call.settimeout(1)
+            #scall_user.sock_call.bind(("",port+2))
             window.thread_recv_msg.start() #end it with close
             window.thread_recv_file.start()
             return (True,"")
@@ -317,7 +343,7 @@ class users_view(QListView):
 class main_window(QMainWindow):
     def __init__(self, *args, **kwargs):
         super(main_window, self).__init__(*args, **kwargs)
-        self.setWindowTitle("Secure Chat")
+        self.setWindowTitle("TypeHat")
         #self.setContentsMargins(10,10,10,10)
         
         #self.thread_recv_msg = threading.Thread(target=wait_recv_msg)
@@ -326,6 +352,9 @@ class main_window(QMainWindow):
         self.thread_recv_file = run_fun(wait_recv_file)
         self.thread_recv_file.msg_box.connect(lambda t,f: self.show_box_file(t,f), Qt.BlockingQueuedConnection)
         self.thread_recv_file.l_state.connect(lambda b: self.change_loading_file(b), Qt.BlockingQueuedConnection)
+
+        
+
         self.path_file = ("","")
 
         #connect
@@ -464,6 +493,8 @@ class main_window(QMainWindow):
             self.box_chat.setVisible(True)
             self.setCentralWidget(self.box_chat)
             self.resize(650,500)
+            self.thread_send_voice = run_fun(send_voice,[self.line_ip.text(),int(self.line_port.text())])
+            self.thread_recv_voice = run_fun(recv_voice)
         elif r[1] == "pass":
             self.connect.setEnabled(True)
             self.loading.setVisible(False)
@@ -491,12 +522,16 @@ class main_window(QMainWindow):
             self.call_but.setIcon(QIcon("../images/ringoff.png"))
             self.mute_but.setVisible(True)
             self.in_call = True
+            self.thread_send_voice.start()
+            self.thread_recv_voice.start()
         else:
             self.call_but.setIcon(QIcon("../images/call.png"))
             self.mute_but.setVisible(False)
             self.in_call = False
             self.mute_but.setIcon(QIcon("../images/unmute.png"))
             self.muted = False
+            self.thread_send_voice.wait()
+            self.thread_recv_voice.wait()
 
     def mute_manager(self):
         if not self.muted:

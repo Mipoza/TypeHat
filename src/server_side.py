@@ -117,15 +117,29 @@ def wait_recv_file(user):
             print("Error with client, certainly closed (file)")
             break
 
-def wait_recv_call(user):
+def send_vpac(data, addr):
+    serv.scall_serv.secure_sendto(data, addr)
+
+def wait_recv_call():
+    serv.scall_serv.sock_call.bind(("",serv.port+2))
     while True:
         try:
-            pass
-            #data = user.encrypter.decrypt(serv.sock_call.recv(serv.buffer))
-            #data, addr = serv.sock_call.recvfrom(serv.buffer) #pb here, il capte lautre
-            #print(addr)
-        except:
-            print("Error with udp call sock recv.")
+            data_and_addr = serv.scall_serv.secure_recvfrom()
+
+            if not (data_and_addr[1] in serv.in_call):
+                serv.in_call.append(data_and_addr[1])
+            th_list = []
+
+            for addr in serv.in_call:
+                if addr != data_and_addr[1]:
+                    th_list.append(threading.Thread(target=send_vpac,args=[data_and_addr[0],addr]))
+                    th_list[-1].start()
+
+            for t in th_list:
+                t.join()
+
+        except Exception as e:
+            print(e)
             break
 
 def leaved(user):
@@ -179,7 +193,7 @@ if __name__ == "__main__":
     started = False
 
     print("""
-    Welcome to Secure Chat Server !
+    Welcome to TypeHat Server !
     """)
 
     while True:
@@ -190,6 +204,7 @@ if __name__ == "__main__":
                 started = True
                 serv = snet.ss_serv(port,password) #try
                 threading.Thread(target=listenning).start()
+                threading.Thread(target=wait_recv_call).start()
                 print("Server has started!")
             else:
                 print("Server already started.")
