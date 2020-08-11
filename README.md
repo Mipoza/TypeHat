@@ -1,4 +1,4 @@
-![Screenshot](images/typehat_logo.svg)
+![Screenshot](images/typehat_logo.png)
 A simple utility to have safe and secure communication.
 
 for python3
