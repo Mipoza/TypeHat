@@ -121,7 +121,7 @@ def send_vpac(data, addr):
     serv.scall_serv.secure_sendto(data, addr)
 
 def wait_recv_call():
-    serv.scall_serv.sock_call.bind(("",serv.port+2))
+    serv.scall_serv.sock_call.bind(("",serv.port))
     while True:
         try:
             data_and_addr = serv.scall_serv.secure_recvfrom()

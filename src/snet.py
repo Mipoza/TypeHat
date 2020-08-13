@@ -123,7 +123,7 @@ class ss_serv():
 
         self.sock_msg.bind(("",self.port))
         self.sock_file.bind(("",self.port+1))
-        self.sock_call.bind(("",self.port))
+        #self.sock_call.bind(("",self.port))
 
         self.password = password
         self.key_RSA = RSA.generate(2048)

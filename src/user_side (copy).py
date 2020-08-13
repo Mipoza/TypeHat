@@ -1,13 +1,12 @@
-import snet, socket, time, threading, os, sys, json, pyaudio, select
+import snet, socket, time, threading, os, sys, json, pyaudio
 from cryptography.fernet import Fernet
 from Crypto.PublicKey import RSA
 from Crypto.Cipher import PKCS1_OAEP
-from PyQt5.QtWidgets import QMessageBox, QApplication, QLabel, QListWidget, QStyledItemDelegate, QListWidgetItem,  QFileDialog, QAbstractItemView, QLabel, QMainWindow, QGroupBox, QVBoxLayout, QHBoxLayout, QLineEdit, QPushButton, QListView, QItemDelegate, QStyleOptionViewItem, QStyle, QDialog
-from PyQt5.QtCore import Qt, QRunnable, pyqtSlot, pyqtSignal, QThread, QThreadPool, QObject, QSize, QFileInfo, QStandardPaths, QEvent
+from PyQt5.QtWidgets import QMessageBox, QApplication, QLabel, QListWidget, QListWidgetItem,  QFileDialog, QAbstractItemView, QLabel, QMainWindow, QGroupBox, QVBoxLayout, QHBoxLayout, QLineEdit, QPushButton, QListView, QItemDelegate, QStyleOptionViewItem, QStyle, QDialog
+from PyQt5.QtCore import Qt, QRunnable, pyqtSlot, pyqtSignal, QThread, QThreadPool, QObject, QSize, QFileInfo, QStandardPaths
 from PyQt5.QtGui import QStandardItemModel, QStandardItem, QIntValidator, QFont, QIcon, QPixmap, QMovie
 
 
-#refaire menu connexion, faire voc propre avec tcp au début etc, lecture video, enlever erreur pyaudio, faire selection des 2 port propre 
 
 user = None
 scall_user = None
@@ -88,10 +87,9 @@ def wait_recv_msg(): #separate socket file and image
                 window.chat_ui.join_msg(data)
             elif to_do == "quit":
                 window.chat_ui.leave_msg(data)
-        except Exception as e:
+        except:
             user.sock_msg.close()
             user.sock_file.close()
-            print(e)
             print("Error server was closed") #handled graphicly
             os._exit(0) #make it proper
 
@@ -132,14 +130,16 @@ def wait_recv_file(): #separate socket file and image
             print("Error server was closed") #handle it graphicly
             os._exit(0) #make it proper
 
+p = pyaudio.PyAudio()
+playing_stream = p.open(format=pyaudio.paInt16, channels=1, rate=44000, output=True, frames_per_buffer=1024) 
+recording_stream = p.open(format=pyaudio.paInt16, channels=1, rate=44000, input=True, frames_per_buffer=1024)
+
 def recv_voice():
     global user, scall_user, playing_stream
     while window.in_call:
         try:
-            ready = select.select([scall_user.sock_call], [], [], 1) #mb more than 1 sec for real case
-            if ready[0]:
-                data = scall_user.secure_recvfrom()[0]
-                window.playing_stream.write(data)
+            data = scall_user.secure_recvfrom()[0]
+            playing_stream.write(data)
         except Exception as e:
             print(e)
 
@@ -147,11 +147,8 @@ def send_voice(host, port):
     global user, scall_user, playing_stream
     while window.in_call:
         try:
-            if not window.muted:
-                data = window.recording_stream.read(1024)
-                scall_user.secure_sendto(data, (host,port))
-            else:
-                print("mtued")
+            data = recording_stream.read(1024)
+            scall_user.secure_sendto(data, (host,port+2))
         except:
             print("UDP call send drop")
 
@@ -211,8 +208,8 @@ def connecting(host, port, username):
 
         if samer_username == "0":
             scall_user = snet.scall(sameu_and_key[1:])
-            #scall_user.sock_call.settimeout(1)
-            scall_user.sock_call.setblocking(0)
+            scall_user.sock_call.settimeout(1)
+            #scall_user.sock_call.bind(("",port+2))
             window.thread_recv_msg.start() #end it with close
             window.thread_recv_file.start()
             return (True,"")
@@ -220,57 +217,40 @@ def connecting(host, port, username):
             return (False,"same")
     else:
         return (False,"pass")
-
-class MyDelegate(QStyledItemDelegate):
-    def __init__(self):
-        QStyledItemDelegate.__init__(self) 
-
-    def setModelData(self,editor,model,index):
-        pass # no changes are written to model
-
-    def eventFilter(self,editor,event):
-        if event.type() == QEvent.KeyPress and event.key() not in (Qt.Key_Control, Qt.Key_C):
-            return True
-        return QStyledItemDelegate.eventFilter(self, editor, event)
-
-class message_item(QListWidgetItem):
-    def __init__(self, text, is_for_image=False):
+       
+class message_item(QStandardItem):
+    def __init__(self, text):
         super(message_item, self).__init__(text)
-        #self.setEditable(False)
-        #self.setSelectable(False)
-        if is_for_image:
-            self.setFlags(Qt.ItemIsEnabled)
-        else:
-            self.setFlags(Qt.ItemIsEnabled | Qt.ItemIsEditable)
+        self.setEditable(False)
+        self.setSelectable(False)
 
-class chat_view(QListWidget):
+class chat_view(QListView):
     def __init__(self):
         super(chat_view, self).__init__()
-        #self.setStyleSheet("QListWidget::item:hover {background: transparent;}")
-        #self.setStyleSheet("QListWidget::item:selected {}")
+        self.model = QStandardItemModel(self)
+        self.setStyleSheet("QListView::item:hover {background: transparent;}")
+        self.setModel(self.model)
         self.list_username = []
         self.setWordWrap(True)
         self.setFocusPolicy(Qt.NoFocus)
         self.setIconSize(QSize(550, 550))
         self.setVerticalScrollMode(QAbstractItemView.ScrollPerPixel)
         self.setHorizontalScrollMode(QAbstractItemView.ScrollPerPixel)
-        self.model().rowsInserted.connect(lambda p:self.scrollToBottom())
-        self.setItemDelegate(MyDelegate())
-
+        self.model.rowsInserted.connect(lambda p:self.scrollToBottom())
 
     def add_msg(self, msg):
         if user == None: 
             print("user is none")
         else:
             item = message_item(get_username(msg)+" : "+get_content(msg))
-            self.insertItem(self.count(), item)
+            self.model.appendRow(item)
         
     def join_msg(self, msg):
         if user == None: 
             print("user is none")
         else: 
             item = message_item(get_username(msg)+" has joined the chat !")
-            self.insertItem(self.count(), item)
+            self.model.appendRow(item)
         try:
             self.list_username = json.loads(get_content(msg))
         except:
@@ -285,7 +265,7 @@ class chat_view(QListWidget):
             print("user is none")
         else: 
             item = message_item(get_username(msg)+" has leaved the chat !")
-            self.insertItem(self.count(), item)
+            self.model.appendRow(item)
 
         try:
             self.list_username = json.loads(get_content(msg))
@@ -295,13 +275,13 @@ class chat_view(QListWidget):
             window.users_list_ui.refresh()
         
     def image_msg(self, im, username):
-        item = message_item(username+" :", True)
-        self.insertItem(self.count(), item)
-        item = message_item("", True)
+        item = message_item(username+" :")
+        self.model.appendRow(item)
+        item = message_item("")
         pix = QPixmap()
         pix.loadFromData(im)
         item.setIcon(QIcon(pix))
-        self.insertItem(self.count(), item)
+        self.model.appendRow(item)
 
 class connect_thread(QThread):
     def __init__(self, host, port, username):
@@ -337,17 +317,19 @@ class run_fun(QThread):
     def run(self):
         self.function(*self.args)     
     
-class users_view(QListWidget):
+class users_view(QListView):
     def __init__(self):
         super(users_view, self).__init__()
-        self.setStyleSheet("QListWidget::item:hover {background: transparent;}")
-        self.setStyleSheet("QListWidget::item {color: #6a6a6a;}")
+        self.model = QStandardItemModel(self)
+        self.setStyleSheet("QListView::item:hover {background: transparent;}")
+        self.setModel(self.model)
+        self.setStyleSheet("QListView::item {color: #6a6a6a;}")
         self.setFocusPolicy(Qt.NoFocus)
         self.setIconSize(QSize(18,18))
         self.dict_user_item = {}
 
     def refresh(self):
-        self.clear()
+        self.model.clear()
         for u in window.chat_ui.list_username:
             item = message_item(u)
             font = item.font()
@@ -355,19 +337,14 @@ class users_view(QListWidget):
             #item.setFont(font)
             #item.setIcon(QIcon("../images/incall.png"))
             #self.dict_user_item[]
-            #self.model.appendRow(item)
-            self.insertItem(self.count(), item)
+            self.model.appendRow(item)
 
 
-class main_window(QMainWindow): #wait for reclick on ring out
+class main_window(QMainWindow):
     def __init__(self, *args, **kwargs):
         super(main_window, self).__init__(*args, **kwargs)
         self.setWindowTitle("TypeHat")
         #self.setContentsMargins(10,10,10,10)
-
-        self.p = pyaudio.PyAudio()
-        self.playing_stream = self.p.open(format=pyaudio.paInt16, channels=1, rate=44000, output=True, frames_per_buffer=1024) 
-        self.recording_stream = self.p.open(format=pyaudio.paInt16, channels=1, rate=44000, input=True, frames_per_buffer=1024)
         
         #self.thread_recv_msg = threading.Thread(target=wait_recv_msg)
         #self.thread_recv_file = threading.Thread(target=wait_recv_file)
@@ -407,7 +384,7 @@ class main_window(QMainWindow): #wait for reclick on ring out
         self.line_port.setPlaceholderText("Port number")
         self.line_user.setPlaceholderText("Username")
         
-        self.line_port.setValidator(QIntValidator(0, 65535))
+        self.line_port.setValidator(QIntValidator(0, 65536))
 
         con_lay = QHBoxLayout()
 
