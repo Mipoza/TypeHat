@@ -2,12 +2,12 @@ import snet, socket, time, threading, os, sys, json, pyaudio, select
 from cryptography.fernet import Fernet
 from Crypto.PublicKey import RSA
 from Crypto.Cipher import PKCS1_OAEP
-from PyQt5.QtWidgets import QMessageBox, QApplication, QLabel, QListWidget, QStyledItemDelegate, QListWidgetItem,  QFileDialog, QAbstractItemView, QLabel, QMainWindow, QGroupBox, QVBoxLayout, QHBoxLayout, QLineEdit, QPushButton, QListView, QItemDelegate, QStyleOptionViewItem, QStyle, QDialog
+from PyQt5.QtWidgets import QMessageBox, QApplication, QWidget, QLabel, QListWidget, QStyledItemDelegate, QListWidgetItem,  QFileDialog, QAbstractItemView, QLabel, QMainWindow, QGroupBox, QVBoxLayout, QHBoxLayout, QLineEdit, QPushButton, QListView, QItemDelegate, QStyleOptionViewItem, QStyle, QDialog
 from PyQt5.QtCore import Qt, QRunnable, pyqtSlot, pyqtSignal, QThread, QThreadPool, QObject, QSize, QFileInfo, QStandardPaths, QEvent
 from PyQt5.QtGui import QStandardItemModel, QStandardItem, QIntValidator, QFont, QIcon, QPixmap, QMovie
 
 
-#refaire menu connexion, faire voc propre avec tcp au début etc, lecture video, enlever erreur pyaudio, faire selection des 2 port propre 
+#refaire menu connexion, lecture video, enlever erreur pyaudio, faire selection des 2 port propre, faire exit propre avec select et wait thread, selection peripherique audio
 
 user = None
 scall_user = None
@@ -86,6 +86,8 @@ def wait_recv_msg(): #separate socket file and image
                 window.chat_ui.add_msg(data)
             elif to_do == "join":
                 window.chat_ui.join_msg(data)
+            elif to_do == "ucal":
+                window.users_list_ui.join_call(data)
             elif to_do == "quit":
                 window.chat_ui.leave_msg(data)
         except Exception as e:
@@ -126,6 +128,8 @@ def wait_recv_file(): #separate socket file and image
                     user.secure_send("acpt" + user.username + user.random_esc + file_id, user.sock_file)
                 else:
                     user.secure_send("decl" + user.username + user.random_esc + file_id, user.sock_file)
+            elif to_do == "ucal":
+                window.users_list_ui.join_call(data)
         except:
             user.sock_msg.close()
             user.sock_file.close()
@@ -162,21 +166,21 @@ def connecting(host, port, username):
     while True: #cancel a 3 times
         try:
             conn_msg = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            conn_msg.settimeout(5)
             conn_msg.connect((host, port))
+            conn_msg.settimeout(None)
 
             conn_file = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            conn_file.settimeout(5)
             conn_file.connect((host, port+1))
-
-            #call_sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-            #call_sock.sendto(b"",(host, port))
+            conn_file.settimeout(None)
         except:
             if i == 3:
                 return (False,"attempt")
-            time.sleep(0.5)
+            time.sleep(0.2)
         else:
             break
         i += 1
-    
     
 
     key = Fernet.generate_key()
@@ -277,9 +281,7 @@ class chat_view(QListWidget):
             print("Error with json parse")
         else:
             window.users_list_ui.refresh()
-
         
-    
     def leave_msg(self, msg):
         if user == None: 
             print("user is none")
@@ -293,6 +295,7 @@ class chat_view(QListWidget):
             print("username not in list")
         else:
             window.users_list_ui.refresh()
+    
         
     def image_msg(self, im, username):
         item = message_item(username+" :", True)
@@ -344,7 +347,11 @@ class users_view(QListWidget):
         self.setStyleSheet("QListWidget::item {color: #6a6a6a;}")
         self.setFocusPolicy(Qt.NoFocus)
         self.setIconSize(QSize(18,18))
-        self.dict_user_item = {}
+        self.in_call = []
+    
+    def join_call(self, u_call_list):
+        self.in_call = json.loads(get_content(u_call_list))
+        self.refresh()
 
     def refresh(self):
         self.clear()
@@ -352,10 +359,9 @@ class users_view(QListWidget):
             item = message_item(u)
             font = item.font()
             font.setPointSize(11)
-            #item.setFont(font)
-            #item.setIcon(QIcon("../images/incall.png"))
-            #self.dict_user_item[]
-            #self.model.appendRow(item)
+            item.setFont(font)
+            if u in self.in_call:
+                item.setIcon(QIcon("../images/incall.png"))
             self.insertItem(self.count(), item)
 
 
@@ -388,9 +394,13 @@ class main_window(QMainWindow): #wait for reclick on ring out
         self.loading = QLabel()
         self.loading.setVisible(False)
 
+        self.logo = QLabel()
+        pix = QPixmap("../images/typehat_logo.png")
+        pix = pix.scaled(QSize(250,250), Qt.KeepAspectRatio, Qt.SmoothTransformation)
+        self.logo.setPixmap(pix)
                 
         self.line_pass.setEchoMode(QLineEdit.Password)
-        self.line_pass.setPlaceholderText("Optionnal")
+        self.line_pass.setPlaceholderText("Password")
 
         self.connect = QPushButton("Connect")
         self.connect.setEnabled(self.line_ip.text() != "")
@@ -416,18 +426,26 @@ class main_window(QMainWindow): #wait for reclick on ring out
 
         lay = QVBoxLayout()
 
-        lay.addWidget(self.line_ip )
+        lay.addWidget(self.line_ip)
         lay.addWidget(self.line_port)
         lay.addWidget(self.line_user)
         lay.addWidget(self.line_pass)
         lay.addLayout(con_lay)
         
         self.box_connection = QGroupBox("Connection")
-        
 
         self.box_connection.setLayout(lay)
 
-        self.setCentralWidget(self.box_connection)
+        self.main_wid = QWidget()
+
+        m_lay = QVBoxLayout()
+
+        m_lay.addWidget(self.logo)
+        m_lay.addWidget(self.box_connection)
+
+        self.main_wid.setLayout(m_lay)
+
+        self.setCentralWidget(self.main_wid)
 
         self.line_ip.textChanged.connect(lambda:self.check())
         self.line_port.textChanged.connect(lambda:self.check())
@@ -513,6 +531,7 @@ class main_window(QMainWindow): #wait for reclick on ring out
         if r[0]:
             self.box_connection.setVisible(False)
             self.box_connection.setEnabled(False)
+            self.main_wid.setVisible(False)
             self.box_chat.setVisible(True)
             self.setCentralWidget(self.box_chat)
             self.resize(650,500)
@@ -542,12 +561,14 @@ class main_window(QMainWindow): #wait for reclick on ring out
     
     def call_manager(self):
         if not self.in_call:
+            user.secure_send("call"+user.username+user.random_esc, user.sock_msg)
             self.call_but.setIcon(QIcon("../images/ringoff.png"))
             self.mute_but.setVisible(True)
             self.in_call = True
             self.thread_send_voice.start()
             self.thread_recv_voice.start()
         else:
+            user.secure_send("qcal"+user.username+user.random_esc, user.sock_msg)
             self.call_but.setIcon(QIcon("../images/call.png"))
             self.mute_but.setVisible(False)
             self.in_call = False
@@ -634,7 +655,7 @@ class main_window(QMainWindow): #wait for reclick on ring out
     def closeEvent(self,e):
         if user != None:
             try:
-                user.secure_send("quit"+user.username+user.random_esc+json.dumps(window.chat_ui.list_username), user.sock_msg)
+                user.secure_send("quit"+user.username+user.random_esc, user.sock_msg)
                 user.secure_send("quit"+user.username+user.random_esc, user.sock_file)
             except:
                 print("error sending leave")

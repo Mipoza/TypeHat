@@ -129,6 +129,7 @@ class ss_serv():
         self.key_RSA = RSA.generate(2048)
         self.user_list = []
         #self.dict_addr = {}
+        self.username_in_call = []
         self.in_call = []
         self.fm = file_manager()
         self.scall_serv = scall(Fernet.generate_key())
@@ -138,8 +139,15 @@ class ss_serv():
     
     def ul_str(self):
         l = []
-        for u in self.user_list: #try ?
+        for u in self.user_list:
             l.append(u.username)
+        
+        return json.dumps(l)
+
+    def cl_str(self):
+        l = []
+        for u in self.username_in_call: 
+            l.append(u)
         
         return json.dumps(l)
     

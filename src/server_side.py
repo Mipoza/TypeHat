@@ -1,4 +1,4 @@
-import snet, threading, json, os, socket
+import snet, threading, json, os, socket, time
 from cryptography.fernet import Fernet
 
 serv = None
@@ -26,6 +26,9 @@ def new_user_in(user):
             u.secure_send("join"+ user.username + u.random_esc + serv.ul_str(), u.sock_msg)
         except socket.error as e:
             print(e)
+    
+    if len(serv.username_in_call) > 0 :
+        user.secure_send("ucal" + user.username + user.random_esc + serv.cl_str(), user.sock_file)
 
 def get_action(data):
     global user
@@ -55,6 +58,21 @@ def get_username(data,user):
         username = ""
     return username
 
+def call_manager(user, join):
+    if join:
+        serv.username_in_call.append(user.username)
+    else:
+        try:
+            serv.username_in_call.pop(serv.username_in_call.index(user.username))
+        except:
+            print("delete voc failed in callm")
+
+    for u in serv.user_list:
+        try:
+            u.secure_send("ucal" + user.username + u.random_esc + serv.cl_str(), u.sock_msg)
+        except:
+            print("error")
+
 def wait_recv_msg(user):
     while True:
         try:
@@ -64,6 +82,10 @@ def wait_recv_msg(user):
             to_do = get_action(data)
             if to_do == "mesg":
                 send_all(to_do,data,user)
+            elif to_do == "call":
+                call_manager(user, True)
+            elif to_do == "qcal":
+                call_manager(user, False)
             elif to_do == "quit":
                 user.sock_msg.close()
                 leaved(user)
@@ -102,7 +124,7 @@ def wait_recv_file(user):
             elif to_do == "acpt":
                 file_id = int(get_content(data,user))
                 f_tuple = serv.fm.get_tuple(file_id)
-
+                
                 if f_tuple != None:
                     user.secure_send_big(f_tuple[1], "file"+user.username+user.random_esc)
                     try:
@@ -125,7 +147,6 @@ def wait_recv_call():
     while True:
         try:
             data_and_addr = serv.scall_serv.secure_recvfrom()
-
             if not (data_and_addr[1] in serv.in_call):
                 serv.in_call.append(data_and_addr[1])
             th_list = []
@@ -140,13 +161,18 @@ def wait_recv_call():
 
         except Exception as e:
             print(e)
-            break
+            #break
 
 def leaved(user):
     try:
         serv.user_list.pop(serv.user_list.index(user))
     except:
         print("delete failed")
+
+    try:
+        serv.username_in_call.pop(serv.username_in_call.index(user.username))
+    except:
+        pass
     
     for u in serv.user_list:
         try:
@@ -173,6 +199,8 @@ def send_file(size, fn, user, act):
         
     file_id = serv.fm.add_file(data, u_l)
     
+    th_list = []
+
     for u in serv.user_list:
         try:
             if u != user:
