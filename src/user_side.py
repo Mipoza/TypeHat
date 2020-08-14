@@ -2,12 +2,12 @@ import snet, socket, time, threading, os, sys, json, pyaudio, select
 from cryptography.fernet import Fernet
 from Crypto.PublicKey import RSA
 from Crypto.Cipher import PKCS1_OAEP
-from PyQt5.QtWidgets import QMessageBox, QApplication, QWidget, QLabel, QListWidget, QStyledItemDelegate, QListWidgetItem,  QFileDialog, QAbstractItemView, QLabel, QMainWindow, QGroupBox, QVBoxLayout, QHBoxLayout, QLineEdit, QPushButton, QListView, QItemDelegate, QStyleOptionViewItem, QStyle, QDialog
-from PyQt5.QtCore import Qt, QRunnable, pyqtSlot, pyqtSignal, QThread, QThreadPool, QObject, QSize, QFileInfo, QStandardPaths, QEvent
+from PyQt5.QtWidgets import QMessageBox, QApplication, QCheckBox, QWidget, QLabel, QListWidget, QStyledItemDelegate, QListWidgetItem,  QFileDialog, QAbstractItemView, QLabel, QMainWindow, QGroupBox, QVBoxLayout, QHBoxLayout, QLineEdit, QPushButton, QListView, QItemDelegate, QStyleOptionViewItem, QStyle, QDialog
+from PyQt5.QtCore import Qt, QRunnable, pyqtSlot, pyqtSignal, QThread, QThreadPool, QObject, QSize, QFileInfo, QStandardPaths, QEvent, QSettings
 from PyQt5.QtGui import QStandardItemModel, QStandardItem, QIntValidator, QFont, QIcon, QPixmap, QMovie
 
 
-#rember me (suppr 127.0... etc), lecture video, enlever erreur pyaudio, selection peripherique audio, build with images
+#rember me (suppr 127.0... etc), lecture video, selection peripherique audio, build with images, make settings menu
 
 user = None
 scall_user = None
@@ -84,7 +84,6 @@ def wait_recv_msg(): #separate socket file and image
                 data = data.decode()
 
                 if data == '':
-                    print("msg")
                     window.thread_recv_file.disconnected()
                     break
                 
@@ -121,7 +120,6 @@ def wait_recv_file(): #separate socket file and image
                 data = data.decode()
                 
                 if data == '':
-                    print("file")
                     window.thread_recv_file.disconnected()
                     break
                 
@@ -278,8 +276,8 @@ class message_item(QListWidgetItem):
 class chat_view(QListWidget):
     def __init__(self):
         super(chat_view, self).__init__()
-        #self.setStyleSheet("QListWidget::item:hover {background: transparent;}")
-        #self.setStyleSheet("QListWidget::item:selected {}")
+        self.setStyleSheet("QListWidget::item:hover {background: transparent;}")
+        self.setStyleSheet("QListWidget::item:selected {}")
         self.list_username = []
         self.setWordWrap(True)
         self.setFocusPolicy(Qt.NoFocus)
@@ -294,7 +292,7 @@ class chat_view(QListWidget):
         if user == None: 
             print("user is none")
         else:
-            item = message_item(get_username(msg)+" : "+get_content(msg))
+            item = message_item(get_username(msg)+": "+get_content(msg))
             self.insertItem(self.count(), item)
         
     def join_msg(self, msg):
@@ -326,7 +324,7 @@ class chat_view(QListWidget):
     
         
     def image_msg(self, im, username):
-        item = message_item(username+" :", True)
+        item = message_item(username+": ", True)
         self.insertItem(self.count(), item)
         item = message_item("", True)
         pix = QPixmap()
@@ -396,17 +394,16 @@ class users_view(QListWidget):
                 item.setIcon(QIcon("../images/incall.png"))
             self.insertItem(self.count(), item)
 
-
 class main_window(QMainWindow): #wait for reclick on ring out
     def __init__(self, *args, **kwargs):
         super(main_window, self).__init__(*args, **kwargs)
         self.setWindowTitle("TypeHat")
         #self.setContentsMargins(10,10,10,10)
 
+        self.settings = QSettings("TypeHat","TypeHat")
+
         self.disconnect_called = False
-
         self.listen = True
-
         self.is_closing = False
 
         self.chunck = 1024
@@ -437,12 +434,16 @@ class main_window(QMainWindow): #wait for reclick on ring out
         self.setCentralWidget(self.main_wid)
     
     def init_connection(self):
-        self.line_ip = QLineEdit("127.0.0.1")
-        self.line_port = QLineEdit("2101")
-        self.line_user = QLineEdit("Mipoza")
+        infos = self.load_settings()
+
+        self.line_ip = QLineEdit(infos[0])
+        self.line_port = QLineEdit(infos[1])
+        self.line_user = QLineEdit(infos[2])
         self.line_pass = QLineEdit()
         self.loading = QLabel()
         self.loading.setVisible(False)
+        self.remember = QCheckBox("Remember this server")
+        self.remember.setChecked(infos != ("","",""))
 
         self.logo = QLabel()
         pix = QPixmap("../images/typehat_logo.png")
@@ -476,10 +477,12 @@ class main_window(QMainWindow): #wait for reclick on ring out
 
         lay = QVBoxLayout()
 
+
         lay.addWidget(self.line_ip)
         lay.addWidget(self.line_port)
         lay.addWidget(self.line_user)
         lay.addWidget(self.line_pass)
+        lay.addWidget(self.remember)
         lay.addLayout(con_lay)
         
         self.box_connection = QGroupBox("Connection")
@@ -564,6 +567,18 @@ class main_window(QMainWindow): #wait for reclick on ring out
         self.call_but.clicked.connect(lambda: self.call_manager())
         self.mute_but.clicked.connect(lambda: self.mute_manager())
 
+    def load_settings(self):
+        ip = str(self.settings.value("host",""))
+        port = str(self.settings.value("port",""))
+        username = str(self.settings.value("username",""))
+
+        return (ip, port, username)
+
+    def save_settings(self, host, port, username):
+        self.settings.setValue("host",host)
+        self.settings.setValue("port",port)
+        self.settings.setValue("username",username)
+        
     def connection(self): #make abort
         self.connect.setEnabled(False)
         self.connect.setText("Connection...")
@@ -582,6 +597,10 @@ class main_window(QMainWindow): #wait for reclick on ring out
             self.resize(650,500)
             self.thread_send_voice = run_fun(send_voice,[self.line_ip.text(),int(self.line_port.text())])
             self.thread_recv_voice = run_fun(recv_voice)
+            if self.remember.isChecked():
+                self.save_settings(self.line_ip.text(),self.line_port.text(),self.line_user.text())
+            else:
+                self.save_settings("","","")
         elif r[1] == "pass":
             self.connect.setEnabled(True)
             self.loading.setVisible(False)
