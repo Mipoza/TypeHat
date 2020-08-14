@@ -79,6 +79,7 @@ def wait_recv_msg(user):
             data = user.secure_recv(user.sock_msg) 
             data = data.decode()
             #what to do
+
             to_do = get_action(data)
             if to_do == "mesg":
                 send_all(to_do,data,user)
@@ -161,6 +162,7 @@ def wait_recv_call():
 
         except Exception as e:
             print(e)
+            print("except in voc")
             #break
 
 def leaved(user):
@@ -240,8 +242,10 @@ if __name__ == "__main__":
             if started:
                 for u in serv.user_list:
                     try:
+                        u.secure_send("sclo"+u.username+u.random_esc, u.sock_msg)
                         u.close()
-                    except:
+                    except Exception as e:
+                        print(e)
                         print("cannot close client socket")
                 serv.sock_msg.close()
                 serv.sock_file.close()

@@ -7,7 +7,7 @@ from PyQt5.QtCore import Qt, QRunnable, pyqtSlot, pyqtSignal, QThread, QThreadPo
 from PyQt5.QtGui import QStandardItemModel, QStandardItem, QIntValidator, QFont, QIcon, QPixmap, QMovie
 
 
-#refaire menu connexion, lecture video, enlever erreur pyaudio, faire selection des 2 port propre, faire exit propre avec select et wait thread, selection peripherique audio
+#rember me (suppr 127.0... etc), lecture video, enlever erreur pyaudio, selection peripherique audio, build with images
 
 user = None
 scall_user = None
@@ -75,75 +75,104 @@ def recv_file(user, file_size):
 
 def wait_recv_msg(): #separate socket file and image
     global user
-    while True:
-        try:
-            data = user.secure_recv(user.sock_msg) 
-            data = data.decode()
-            
-            to_do = get_action(data)
 
-            if to_do == "mesg":
-                window.chat_ui.add_msg(data)
-            elif to_do == "join":
-                window.chat_ui.join_msg(data)
-            elif to_do == "ucal":
-                window.users_list_ui.join_call(data)
-            elif to_do == "quit":
-                window.chat_ui.leave_msg(data)
+    while window.listen:
+        try:
+            ready = select.select([user.sock_msg], [], [], 2) #mb more than 2 sec for real case
+            if ready[0]:
+                data = user.secure_recv(user.sock_msg) 
+                data = data.decode()
+
+                if data == '':
+                    print("msg")
+                    window.thread_recv_file.disconnected()
+                    break
+                
+                to_do = get_action(data)
+
+                if to_do == "mesg":
+                    window.chat_ui.add_msg(data)
+                elif to_do == "join":
+                    window.chat_ui.join_msg(data)
+                elif to_do == "ucal":
+                    window.users_list_ui.join_call(data)
+                elif to_do == "sclo":
+                    print("here wtf")
+                    window.thread_recv_msg.disconnected()
+                    break
+                elif to_do == "quit":
+                    window.chat_ui.leave_msg(data)
         except Exception as e:
             user.sock_msg.close()
             user.sock_file.close()
             print(e)
-            print("Error server was closed") #handled graphicly
-            os._exit(0) #make it proper
+            print("Error server was closed (msg)") 
+            window.thread_recv_msg.disconnected()
+            break
+            #os._exit(0) #make it proper
 
 def wait_recv_file(): #separate socket file and image
     global user
-    while True:
+    while window.listen:
         try:
-            data = user.secure_recv(user.sock_file) 
-            data = data.decode()
-            
-            to_do = get_action(data)
-
-            if to_do == "imag":
-                im = user.secure_revc_big(int(get_content(data)))
-                window.chat_ui.image_msg(im, get_username(data))
-            elif to_do == "file":
-                file_size = int(get_content(data))
-
-                window.thread_recv_file.load_state(True)
-                recv_file(user, file_size)
-                window.thread_recv_file.load_state(False)
-            elif to_do == "acpt":
-                s = get_content(data)
-
-                size = s[:s.find("/fn/")]
-                file_name = s[s.find("/fn/")+4:s.find("/id/")]
-                file_id = s[s.find("/id/")+4:]
-
-                window.thread_recv_file.show_box(get_username(data)+" want to send you a file : "+file_name+" "+size_format(size)[0]+size_format(size)[1]+"\n"+"Do you want to accept it ?", file_name)
+            ready = select.select([user.sock_file], [], [], 2) #mb more than 2 sec for real case
+            if ready[0]:
+                data = user.secure_recv(user.sock_file) 
+                data = data.decode()
                 
-                if window.path_file[0] != "":
-                    user.secure_send("acpt" + user.username + user.random_esc + file_id, user.sock_file)
-                else:
-                    user.secure_send("decl" + user.username + user.random_esc + file_id, user.sock_file)
-            elif to_do == "ucal":
-                window.users_list_ui.join_call(data)
-        except:
+                if data == '':
+                    print("file")
+                    window.thread_recv_file.disconnected()
+                    break
+                
+                to_do = get_action(data)
+
+                if to_do == "imag":
+                    im = user.secure_revc_big(int(get_content(data)))
+                    window.chat_ui.image_msg(im, get_username(data))
+                elif to_do == "file":
+                    file_size = int(get_content(data))
+
+                    window.thread_recv_file.load_state(True)
+                    recv_file(user, file_size)
+                    window.thread_recv_file.load_state(False)
+                elif to_do == "acpt":
+                    s = get_content(data)
+
+                    size = s[:s.find("/fn/")]
+                    file_name = s[s.find("/fn/")+4:s.find("/id/")]
+                    file_id = s[s.find("/id/")+4:]
+
+                    window.thread_recv_file.show_box(get_username(data)+" want to send you a file : "+file_name+" "+size_format(size)[0]+size_format(size)[1]+"\n"+"Do you want to accept it ?", file_name)
+                    
+                    if window.path_file[0] != "":
+                        user.secure_send("acpt" + user.username + user.random_esc + file_id, user.sock_file)
+                    else:
+                        user.secure_send("decl" + user.username + user.random_esc + file_id, user.sock_file)
+                elif to_do == "ucal":
+                    window.users_list_ui.join_call(data)
+        except Exception as e:
             user.sock_msg.close()
             user.sock_file.close()
-            print("Error server was closed") #handle it graphicly
-            os._exit(0) #make it proper
+            print(e) #handle it graphicly
+            print("Error server was closed (file)") #handle it graphicly
+            window.thread_recv_file.disconnected()
+            break
+            #os._exit(0) #make it proper
 
 def recv_voice():
     global user, scall_user, playing_stream
     while window.in_call:
         try:
-            ready = select.select([scall_user.sock_call], [], [], 1) #mb more than 1 sec for real case
+            ready = select.select([scall_user.sock_call], [], [], 2) #mb more than 2 sec for real case
             if ready[0]:
                 data = scall_user.secure_recvfrom()[0]
                 window.playing_stream.write(data)
+
+                free = window.playing_stream.get_write_available()
+                if free > window.chunck:
+                    tofill = free - window.chunck
+                    window.playing_stream.write(chr(0) * tofill)
         except Exception as e:
             print(e)
 
@@ -152,10 +181,10 @@ def send_voice(host, port):
     while window.in_call:
         try:
             if not window.muted:
-                data = window.recording_stream.read(1024)
+                data = window.recording_stream.read(window.chunck)
                 scall_user.secure_sendto(data, (host,port))
-            else:
-                print("mtued")
+            else: 
+                time.sleep(0.01) #for prevent ASLA run underoccured
         except:
             print("UDP call send drop")
 
@@ -182,7 +211,6 @@ def connecting(host, port, username):
             break
         i += 1
     
-
     key = Fernet.generate_key()
     key_RSA = conn_msg.recv(2048)
 
@@ -322,6 +350,7 @@ class connect_thread(QThread):
 class run_fun(QThread):
     msg_box = pyqtSignal(str, str)
     l_state = pyqtSignal(bool)
+    disconnect = pyqtSignal()
 
     def __init__(self, func, args=[]):
         QThread.__init__(self)
@@ -333,6 +362,9 @@ class run_fun(QThread):
 
     def load_state(self, b):
         self.l_state.emit(b)
+    
+    def disconnected(self):
+        self.disconnect.emit()
 
     def __del__(self):
         self.wait()
@@ -371,9 +403,16 @@ class main_window(QMainWindow): #wait for reclick on ring out
         self.setWindowTitle("TypeHat")
         #self.setContentsMargins(10,10,10,10)
 
+        self.disconnect_called = False
+
+        self.listen = True
+
+        self.is_closing = False
+
+        self.chunck = 1024
         self.p = pyaudio.PyAudio()
-        self.playing_stream = self.p.open(format=pyaudio.paInt16, channels=1, rate=44000, output=True, frames_per_buffer=1024) 
-        self.recording_stream = self.p.open(format=pyaudio.paInt16, channels=1, rate=44000, input=True, frames_per_buffer=1024)
+        self.playing_stream = self.p.open(format=pyaudio.paInt16, channels=1, rate=41000, output=True, frames_per_buffer=self.chunck) 
+        self.recording_stream = self.p.open(format=pyaudio.paInt16, channels=1, rate=41000, input=True, frames_per_buffer=self.chunck)
         
         #self.thread_recv_msg = threading.Thread(target=wait_recv_msg)
         #self.thread_recv_file = threading.Thread(target=wait_recv_file)
@@ -382,11 +421,22 @@ class main_window(QMainWindow): #wait for reclick on ring out
         self.thread_recv_file.msg_box.connect(lambda t,f: self.show_box_file(t,f), Qt.BlockingQueuedConnection)
         self.thread_recv_file.l_state.connect(lambda b: self.change_loading_file(b), Qt.BlockingQueuedConnection)
 
-        
+        self.thread_recv_msg.disconnect.connect(lambda : self.disconnect_and_reaload())
+        self.thread_recv_file.disconnect.connect(lambda : self.disconnect_and_reaload())
+
+        self.thread_send_voice = None
+        self.thread_recv_voice = None
 
         self.path_file = ("","")
 
         #connect
+        self.init_connection()
+        #chat
+        self.init_chat()
+
+        self.setCentralWidget(self.main_wid)
+    
+    def init_connection(self):
         self.line_ip = QLineEdit("127.0.0.1")
         self.line_port = QLineEdit("2101")
         self.line_user = QLineEdit("Mipoza")
@@ -445,15 +495,12 @@ class main_window(QMainWindow): #wait for reclick on ring out
 
         self.main_wid.setLayout(m_lay)
 
-        self.setCentralWidget(self.main_wid)
-
         self.line_ip.textChanged.connect(lambda:self.check())
         self.line_port.textChanged.connect(lambda:self.check())
         self.line_user.textChanged.connect(lambda:self.check())
         self.connect.clicked.connect(lambda:self.connection())
 
-        #chat
-        
+    def init_chat(self):
         self.in_call = False
         self.muted = False
 
@@ -516,7 +563,7 @@ class main_window(QMainWindow): #wait for reclick on ring out
         self.line_msg.textChanged.connect(lambda:self.check_len())
         self.call_but.clicked.connect(lambda: self.call_manager())
         self.mute_but.clicked.connect(lambda: self.mute_manager())
-    
+
     def connection(self): #make abort
         self.connect.setEnabled(False)
         self.connect.setText("Connection...")
@@ -529,8 +576,6 @@ class main_window(QMainWindow): #wait for reclick on ring out
 
     def connection_result(self, r):
         if r[0]:
-            self.box_connection.setVisible(False)
-            self.box_connection.setEnabled(False)
             self.main_wid.setVisible(False)
             self.box_chat.setVisible(True)
             self.setCentralWidget(self.box_chat)
@@ -574,8 +619,10 @@ class main_window(QMainWindow): #wait for reclick on ring out
             self.in_call = False
             self.mute_but.setIcon(QIcon("../images/unmute.png"))
             self.muted = False
+            self.setEnabled(False)
             self.thread_send_voice.wait()
             self.thread_recv_voice.wait()
+            self.setEnabled(True)
 
     def mute_manager(self):
         if not self.muted:
@@ -590,10 +637,9 @@ class main_window(QMainWindow): #wait for reclick on ring out
         msg = self.line_msg.text()
         self.line_msg.clear()
         try:
-            user.secure_send("mesg"+user.username+user.random_esc+msg, user.sock_msg)
-            #self.chat_ui.add_msg(data.decode()) #maybe json for spe carac ?
+            user.secure_send("mesg"+user.username+user.random_esc+msg, user.sock_msg) 
         except:
-            print("Error with socket sending") #print error in red in chat ?
+            print("Error with socket sending") #if faiiled, disconnect ?
 
     def change_loading_file(self, enabled):
         self.send_f.setEnabled(not enabled)
@@ -631,6 +677,22 @@ class main_window(QMainWindow): #wait for reclick on ring out
         else:
             pass
 
+    def disconnect_and_reaload(self):
+        if not self.disconnect_called and not self.is_closing:
+            self.disconnect_called = True
+            self.wait_for_threads()
+            
+            self.box_chat.setVisible(False)
+            self.init_connection()
+            self.init_chat()
+            self.setCentralWidget(self.main_wid)
+            self.resize(self.main_wid.sizeHint())
+            
+
+            QMessageBox.critical(self, "Error with server","Server was certainly closed.", QMessageBox.Close)
+            self.disconnect_called = False
+            self.listen = True
+
     def show_box_file(self, text, f_name):
         r = QMessageBox.question(window, "File sending", text, QMessageBox.Yes | QMessageBox.No, QMessageBox.Yes)
         
@@ -652,14 +714,26 @@ class main_window(QMainWindow): #wait for reclick on ring out
             else:
                 self.connect.click()
 
+    def wait_for_threads(self):
+        self.listen = False
+        self.in_call = False
+        self.thread_recv_file.wait()
+        self.thread_recv_msg.wait()
+        if self.thread_send_voice != None and self.thread_recv_voice != None:
+            self.thread_send_voice.wait()
+            self.thread_recv_voice.wait()
+
     def closeEvent(self,e):
+        self.is_closing = True
         if user != None:
             try:
                 user.secure_send("quit"+user.username+user.random_esc, user.sock_msg)
                 user.secure_send("quit"+user.username+user.random_esc, user.sock_file)
             except:
-                print("error sending leave")
-        os._exit(0) #make proper
+                pass
+            self.wait_for_threads()
+
+        #os._exit(0) #make proper
 
 if __name__ == "__main__":
     app = QApplication(sys.argv)

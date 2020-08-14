@@ -22,7 +22,11 @@ class secure_socket:
 
 
     def secure_recv(self, sock):
-        return self.encrypter.decrypt(sock.recv(self.buffer))
+        d = sock.recv(self.buffer)
+        if d != b'':
+            return self.encrypter.decrypt(d)
+        else:
+            return b''
 
     def secure_send_big(self, data, action, file_name=''):
         to_send = data
@@ -54,6 +58,10 @@ class user(secure_socket):
         secure_socket.__init__(self, key, sock_msg, sock_file, buffer)
         self.username = username
         self.random_esc = ''.join(random.choice(string.ascii_letters+string.digits) for i in range(32))
+    
+    def close(self):
+        self.sock_msg.close()
+        self.sock_file.close()
 
 class scall():
     def __init__(self, key, buffer=4096):
