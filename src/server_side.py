@@ -224,7 +224,15 @@ if __name__ == "__main__":
 
     print("""
     Welcome to TypeHat Server !
+                v1.0
+
+    command list :
+        "start" to start server
+        "exit" to exit
+        "port x" with x the port number
+        "pass x" with x the password 
     """)
+
 
     while True:
         action = input("> ").lower()
