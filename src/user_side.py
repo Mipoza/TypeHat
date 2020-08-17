@@ -6,8 +6,8 @@ from PyQt5.QtWidgets import QMessageBox, QApplication, QCheckBox, QWidget, QLabe
 from PyQt5.QtCore import Qt, QRunnable, pyqtSlot, pyqtSignal, QThread, QThreadPool, QObject, QSize, QFileInfo, QStandardPaths, QEvent, QSettings
 from PyQt5.QtGui import QStandardItemModel, QStandardItem, QIntValidator, QFont, QIcon, QPixmap, QMovie
 
-
-#rember me (suppr 127.0... etc), lecture video, selection peripherique audio, build with images, make settings menu
+#lecture video, selection peripherique audio, build with images, make settings menu (add disco to it), make requierement, close socket at quit
+#solve distant udp problem, listen ? (maybe select pb ?), check if connect solve pb
 
 user = None
 scall_user = None
@@ -164,7 +164,7 @@ def recv_voice():
         try:
             ready = select.select([scall_user.sock_call], [], [], 2) #mb more than 2 sec for real case
             if ready[0]:
-                data = scall_user.secure_recvfrom()[0]
+                data = scall_user.secure_recv()
                 window.playing_stream.write(data)
 
                 free = window.playing_stream.get_write_available()
@@ -180,7 +180,8 @@ def send_voice(host, port):
         try:
             if not window.muted:
                 data = window.recording_stream.read(window.chunck)
-                scall_user.secure_sendto(data, (host,port))
+                #scall_user.secure_sendto(data, (host,port))
+                scall_user.secure_send(data)
             else: 
                 time.sleep(0.01) #for prevent ASLA run underoccured
         except:
@@ -242,6 +243,7 @@ def connecting(host, port, username):
         if samer_username == "0":
             scall_user = snet.scall(sameu_and_key[1:])
             #scall_user.sock_call.settimeout(1)
+            scall_user.sock_call.connect((host,port))
             scall_user.sock_call.setblocking(0)
             window.thread_recv_msg.start() #end it with close
             window.thread_recv_file.start()

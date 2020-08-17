@@ -140,7 +140,7 @@ def wait_recv_file(user):
             print("Error with client, certainly closed (file)")
             break
 
-def send_vpac(data, addr):
+def send_vpac(data, addr): #check for send
     serv.scall_serv.secure_sendto(data, addr)
 
 def wait_recv_call():
@@ -152,7 +152,7 @@ def wait_recv_call():
                 serv.in_call.append(data_and_addr[1])
             th_list = []
 
-            for addr in serv.in_call:
+            for addr in serv.in_call: #check ta is sned ?
                 if addr != data_and_addr[1]:
                     th_list.append(threading.Thread(target=send_vpac,args=[data_and_addr[0],addr]))
                     th_list[-1].start()

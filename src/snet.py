@@ -70,6 +70,15 @@ class scall():
         self.buffer = buffer
         self.sock_call = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
 
+    def secure_send(self, data): #need to connect
+        to_send = data
+        if(type(data) == str):
+            to_send = to_send.encode()
+        return self.sock_call.send(self.encrypter.encrypt(to_send))
+    
+    def secure_recv(self): #need to connect
+        data = self.sock_call.recv(self.buffer)
+        return self.encrypter.decrypt(data)
 
     def secure_sendto(self, data, addr):
         to_send = data
