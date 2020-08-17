@@ -1,6 +1,6 @@
 ![Screenshot](images/typehat_logo.png)
 
-#TypeHat
+# TypeHat
 
 TypeHat is a simple utility for having safe and secure communications.
 
